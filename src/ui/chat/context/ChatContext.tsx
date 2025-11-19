@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { Attachment, ChatMessage, ChatSendRequest, Conversation } from "../../../core/chat";
+import type { ChatMessage, ChatSendRequest, Conversation } from "../../../core/chat";
+import type { Attachment } from "../../../core/types";
 import type { AppServices } from "../../../adapters/base";
 import type { ModelInfo } from "../../../core/types";
 
@@ -50,7 +51,12 @@ export const ChatProvider: React.FC<{
     const load = async () => {
       setLoading(true);
       try {
-        const convs = await services.chat.listConversations(currentWorkspace);
+        const convsRaw = await services.chat.listConversations(currentWorkspace);
+        const convs = Array.isArray(convsRaw)
+          ? convsRaw
+          : Array.isArray((convsRaw as any)?.conversations)
+            ? (convsRaw as any).conversations
+            : [];
         setConversations(convs);
         if (!activeConversationId && convs[0]) {
           setActiveConversationId(convs[0].id);

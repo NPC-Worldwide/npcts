@@ -10,6 +10,4 @@ export interface AppServices {
   browser?: BrowserClient;
 }
 
-export interface AdapterFactory<T = unknown> {
-  create(bridge: T): AppServices;
-}
+export type AdapterFactory<T = unknown> = (bridge: T) => AppServices;

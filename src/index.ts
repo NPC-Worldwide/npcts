@@ -1,12 +1,21 @@
+export * from "./core/chat";
 export * from "./core/types";
 export * from "./core/layout";
-export * from "./core/chat";
-export * from "./core/files";
-export * from "./core/jobs";
-export * from "./core/browser";
-export * from "./core/stream";
-
 export * from "./adapters/base";
-export * from "./adapters/electron/bridge";
+export { createElectronAdapter } from "./adapters/electron/bridge";
+export * from "./ui/primitives";
+export * from "./ui/chat";
+export * from "./ui/files";
+export { MessageItem } from "./ui/chat/components/MessageItem";
+export * from "./ui/viewers";
+export * from "./ui/dialogs";
+export * from "./ui/specialized";
+export { getFileIcon, convertFileToBase64 } from "./ui/utils";
+export * from "./ui/layout/components/modals";
 
-export * from "./ui";
+// ADD THESE:
+export * from "./ui/sql";
+export * from "./ui/memory";
+export * from "./ui/knowledge-graph";
+export * from "./ui/execution";
+export * from "./ui/models";

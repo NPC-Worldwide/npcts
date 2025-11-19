@@ -1,0 +1,226 @@
+import React, { 
+  createContext, 
+  useContext, 
+  useState, 
+  useRef, 
+  useCallback 
+} from "react";
+import type { LayoutNode, ContentNode } from "../../../core/layout";
+
+interface ContentData {
+  contentType?: string;
+  contentId?: string;
+  fileContent?: string;
+  fileChanged?: boolean;
+  chatMessages?: any;
+  browserUrl?: string;
+  [key: string]: any;
+}
+
+interface LayoutState {
+  rootLayoutNode: LayoutNode | null;
+  setRootLayoutNode: React.Dispatch<React.SetStateAction<LayoutNode | null>>;
+  activeContentPaneId: string | null;
+  setActiveContentPaneId: (id: string | null) => void;
+  contentDataRef: React.MutableRefObject<Record<string, ContentData>>;
+  draggedItem: any;
+  setDraggedItem: (item: any) => void;
+  paneContextMenu: any;
+  setPaneContextMenu: (menu: any) => void;
+  updateContentNode: (
+    paneId: string, 
+    contentType: string, 
+    contentId: string
+  ) => Promise<void>;
+  closeContentPane: (paneId: string, nodePath: number[]) => void;
+  splitPane: (
+    targetPath: number[], 
+    side: "left" | "right" | "top" | "bottom",
+    newContentType: string,
+    newContentId: string
+  ) => void;
+  findNodeByPath: (node: LayoutNode | null, path: number[]) => any;
+  findNodePath: (node: LayoutNode | null, nodeId: string) => number[];
+}
+
+const LayoutContext = createContext<LayoutState | undefined>(undefined);
+
+export const LayoutProvider: React.FC<{ children: React.ReactNode }> = ({ 
+  children 
+}) => {
+  const [rootLayoutNode, setRootLayoutNode] = 
+    useState<LayoutNode | null>(null);
+  const [activeContentPaneId, setActiveContentPaneId] = 
+    useState<string | null>(null);
+  const [draggedItem, setDraggedItem] = useState<any>(null);
+  const [paneContextMenu, setPaneContextMenu] = useState<any>(null);
+  const contentDataRef = useRef<Record<string, ContentData>>({});
+
+  const findNodeByPath = useCallback(
+    (node: LayoutNode | null, path: number[]): any => {
+      if (!node || path.length === 0) return node;
+      if (node.type === "content") return node;
+      if (node.type === "split") {
+        const [index, ...rest] = path;
+        return findNodeByPath(node.children[index], rest);
+      }
+      return null;
+    },
+    []
+  );
+
+  const findNodePath = useCallback(
+    (node: LayoutNode | null, nodeId: string, path: number[] = []): 
+      number[] => {
+      if (!node) return [];
+      if (node.id === nodeId) return path;
+      if (node.type === "split") {
+        for (let i = 0; i < node.children.length; i++) {
+          const result = findNodePath(node.children[i], nodeId, [
+            ...path, 
+            i
+          ]);
+          if (result.length > 0) return result;
+        }
+      }
+      return [];
+    },
+    []
+  );
+
+  const updateContentNode = useCallback(async (
+    paneId: string,
+    contentType: string,
+    contentId: string
+  ) => {
+    contentDataRef.current[paneId] = {
+      contentType,
+      contentId,
+      fileContent: "",
+      fileChanged: false,
+    };
+    setActiveContentPaneId(paneId);
+  }, []);
+
+  const closeContentPane = useCallback((
+    paneId: string, 
+    nodePath: number[]
+  ) => {
+    delete contentDataRef.current[paneId];
+    setRootLayoutNode((prev) => {
+      if (!prev) return null;
+      const newRoot = JSON.parse(JSON.stringify(prev));
+      if (nodePath.length === 0) return null;
+      const parentPath = nodePath.slice(0, -1);
+      const parent = findNodeByPath(newRoot, parentPath);
+      if (parent?.type === "split") {
+        const childIndex = nodePath[nodePath.length - 1];
+        parent.children.splice(childIndex, 1);
+        parent.sizes.splice(childIndex, 1);
+        if (parent.children.length === 1) {
+          if (parentPath.length === 0) {
+            return parent.children[0];
+          }
+          const grandparentPath = parentPath.slice(0, -1);
+          const grandparent = findNodeByPath(newRoot, grandparentPath);
+          if (grandparent?.type === "split") {
+            const parentIndex = parentPath[parentPath.length - 1];
+            grandparent.children[parentIndex] = parent.children[0];
+          }
+        }
+      }
+      return newRoot;
+    });
+  }, [findNodeByPath]);
+
+  const splitPane = useCallback((
+    targetPath: number[],
+    side: "left" | "right" | "top" | "bottom",
+    newContentType: string,
+    newContentId: string
+  ) => {
+    const newPaneId = `pane-${Date.now()}-${Math.random()}`;
+    contentDataRef.current[newPaneId] = {
+      contentType: newContentType,
+      contentId: newContentId,
+    };
+
+    setRootLayoutNode((prev) => {
+      if (!prev) {
+        return {
+          id: newPaneId,
+          type: "content",
+          contentType: newContentType,
+        };
+      }
+
+      const newRoot = JSON.parse(JSON.stringify(prev));
+      const targetNode = findNodeByPath(newRoot, targetPath);
+
+      if (!targetNode) return prev;
+
+      const direction = 
+        side === "left" || side === "right" ? "horizontal" : "vertical";
+      const newContentNode = {
+        id: newPaneId,
+        type: "content" as const,
+        contentType: newContentType,
+      };
+
+      const splitNode = {
+        id: `split-${Date.now()}`,
+        type: "split" as const,
+        direction,
+        children:
+          side === "left" || side === "top"
+            ? [newContentNode, targetNode]
+            : [targetNode, newContentNode],
+        sizes: [50, 50],
+      };
+
+      if (targetPath.length === 0) {
+        return splitNode;
+      }
+
+      const parentPath = targetPath.slice(0, -1);
+      const parent = findNodeByPath(newRoot, parentPath);
+      if (parent?.type === "split") {
+        const childIndex = targetPath[targetPath.length - 1];
+        parent.children[childIndex] = splitNode;
+      }
+
+      return newRoot;
+    });
+
+    setActiveContentPaneId(newPaneId);
+  }, [findNodeByPath]);
+
+  const value: LayoutState = {
+    rootLayoutNode,
+    setRootLayoutNode,
+    activeContentPaneId,
+    setActiveContentPaneId,
+    contentDataRef,
+    draggedItem,
+    setDraggedItem,
+    paneContextMenu,
+    setPaneContextMenu,
+    updateContentNode,
+    closeContentPane,
+    splitPane,
+    findNodeByPath,
+    findNodePath,
+  };
+
+  return (
+    <LayoutContext.Provider value={value}>
+      {children}
+    </LayoutContext.Provider>
+  );
+};
+
+export const useLayout = () => {
+  const ctx = useContext(LayoutContext);
+  if (!ctx) throw new Error("useLayout must be used within LayoutProvider");
+  return ctx;
+};

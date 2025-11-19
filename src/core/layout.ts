@@ -1,34 +1,18 @@
-export type SplitDirection = "horizontal" | "vertical";
-
-export interface ContentPane {
-  id: string;
-  kind: string;
-  title?: string;
-  meta?: Record<string, unknown>;
-}
+export type SplitDirection = 'horizontal' | 'vertical';
 
 export interface SplitNode {
+  type: 'split';
   id: string;
-  type: "split";
   direction: SplitDirection;
-  sizes: number[];
   children: LayoutNode[];
+  sizes: number[];
 }
 
 export interface ContentNode {
+  type: 'content';
   id: string;
-  type: "content";
-  panes: ContentPane[];
-  activePaneId?: string;
+  contentType: string;
+  data?: any;
 }
 
 export type LayoutNode = SplitNode | ContentNode;
-
-export interface LayoutManager {
-  root: LayoutNode;
-  setRoot: (root: LayoutNode) => void;
-  activatePane: (paneId: string) => void;
-  closePane: (paneId: string) => void;
-  splitPane: (paneId: string, direction: SplitDirection, newPane: ContentPane) => void;
-  movePane: (paneId: string, targetNodeId: string) => void;
-}

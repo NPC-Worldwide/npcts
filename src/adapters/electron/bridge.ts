@@ -4,19 +4,22 @@ import type { ChatClient } from "../../core/chat";
 import type { FileSystemClient } from "../../core/files";
 import type { JobClient } from "../../core/jobs";
 
-type ElectronApi = typeof window extends { api?: unknown }
-  ? (typeof window)["api"]
-  : unknown;
+type ElectronApi = Record<string, any> | undefined;
 
-const assertApi = (api: ElectronApi): asserts api is Record<string, any> => {
+const ensureApi = (api: ElectronApi): Record<string, any> => {
   if (!api) throw new Error("Electron preload api is not available on window.api");
+  return api;
 };
 
-const createChatClient = (api: ElectronApi): ChatClient => {
-  assertApi(api);
+const createChatClient = (rawApi: ElectronApi): ChatClient => {
+  const api = ensureApi(rawApi);
   return {
-    listConversations: (workspacePath?: string) =>
-      api.getConversations?.(workspacePath ?? "") ?? Promise.resolve([]),
+    listConversations: (workspacePath?: string) => {
+      if (api.getConversationsInDirectory && workspacePath) {
+        return api.getConversationsInDirectory(workspacePath);
+      }
+      return api.getConversations?.(workspacePath ?? "") ?? Promise.resolve([]);
+    },
     createConversation: (workspacePath?: string) =>
       api.createConversation?.({ directory_path: workspacePath }) ??
       Promise.reject(new Error("createConversation not implemented")),
@@ -25,18 +28,20 @@ const createChatClient = (api: ElectronApi): ChatClient => {
     listMessages: (conversationId: string) =>
       api.getConversationMessages?.(conversationId) ?? Promise.resolve([]),
     sendMessage: async (request) => {
-      if (request.stream) {
-        const result = await api.executeCommandStream?.({
+      const modelId = typeof request.model === "string" ? request.model : request.model.id;
+      if (request.stream && api.onStreamData) {
+        // The host should expose a stream API that yields chunks; we forward the generator when available.
+        const generator = api.executeCommandStream?.({
           commandstr: request.prompt,
           conversationId: request.conversationId,
-          model: typeof request.model === "string" ? request.model : request.model.id,
+          model: modelId,
         });
-        return result;
+        if (generator) return generator;
       }
       const msg = await api.sendMessage?.({
         conversationId: request.conversationId,
         message: request.prompt,
-        model: request.model,
+        model: modelId,
         attachments: request.attachments,
       });
       return msg;
@@ -46,8 +51,8 @@ const createChatClient = (api: ElectronApi): ChatClient => {
   };
 };
 
-const createFileSystemClient = (api: ElectronApi): FileSystemClient => {
-  assertApi(api);
+const createFileSystemClient = (rawApi: ElectronApi): FileSystemClient => {
+  const api = ensureApi(rawApi);
   return {
     readDirectoryStructure: (dirPath) => api.readDirectoryStructure(dirPath),
     readFileContent: (path) => api.readFileContent(path),
@@ -59,8 +64,8 @@ const createFileSystemClient = (api: ElectronApi): FileSystemClient => {
   };
 };
 
-const createJobClient = (api: ElectronApi): JobClient => {
-  assertApi(api);
+const createJobClient = (rawApi: ElectronApi): JobClient => {
+  const api = ensureApi(rawApi);
   return {
     listCronJobs: () => api.getCronDaemons(),
     addCronJob: (job) => api.addCronJob(job),
@@ -71,8 +76,8 @@ const createJobClient = (api: ElectronApi): JobClient => {
   };
 };
 
-const createBrowserClient = (api: ElectronApi): BrowserClient => {
-  assertApi(api);
+const createBrowserClient = (rawApi: ElectronApi): BrowserClient => {
+  const api = ensureApi(rawApi);
   return {
     navigate: (url) => api.browserNavigate({ url }),
     back: () => api.browserBack({}),

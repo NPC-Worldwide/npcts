@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useChatContext } from "../context/ChatContext";
 import type { ModelInfo } from "../../../core/types";
 
@@ -9,9 +9,8 @@ interface Props {
 export const InputArea: React.FC<Props> = ({ models }) => {
   const { send, streaming, attachments, setAttachments } = useChatContext();
   const [value, setValue] = useState("");
-  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
-    models?.[0]?.id ?? undefined,
-  );
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(models?.[0]?.id);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const selectedModel = useMemo(
     () => models?.find((m) => m.id === selectedModelId) ?? selectedModelId ?? "",
@@ -31,36 +30,29 @@ export const InputArea: React.FC<Props> = ({ models }) => {
   };
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-800 p-3 space-y-2">
-      {models?.length ? (
-        <select
-          value={selectedModelId}
-          onChange={(e) => setSelectedModelId(e.target.value)}
-          className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-700 bg-transparent"
-        >
-          {models.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.displayName || m.id}
-            </option>
-          ))}
-        </select>
-      ) : null}
-      <textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Message..."
-        rows={3}
-        className="w-full resize-none rounded border border-gray-300 dark:border-gray-700 bg-transparent px-3 py-2 text-sm"
-      />
+    <div className="border-t theme-border p-3 space-y-2 theme-bg-tertiary">
       <div className="flex items-center gap-2">
+        {models?.length ? (
+          <select
+            value={selectedModelId}
+            onChange={(e) => setSelectedModelId(e.target.value)}
+            className="text-xs px-2 py-1 rounded theme-input bg-transparent"
+          >
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.displayName || m.id}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <button
-          onClick={onSend}
-          disabled={streaming || !value.trim()}
-          className="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-500 disabled:opacity-50"
+          className="px-2 py-1 text-xs theme-button theme-hover rounded"
+          onClick={() => fileInputRef.current?.click()}
         >
-          {streaming ? "Sending..." : "Send"}
+          Attach
         </button>
         <input
+          ref={fileInputRef}
           type="file"
           multiple
           onChange={(e) => {
@@ -73,9 +65,34 @@ export const InputArea: React.FC<Props> = ({ models }) => {
               sizeBytes: f.size,
             }));
             setAttachments((prev) => [...prev, ...next]);
+            e.target.value = "";
           }}
-          className="text-xs"
+          className="hidden"
         />
+        {attachments.length > 0 && (
+          <div className="text-[11px] theme-text-muted">
+            {attachments.length} file{attachments.length > 1 ? "s" : ""} attached
+          </div>
+        )}
+      </div>
+      <textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={streaming ? "Streaming response..." : "Type a message or drop files..."}
+        rows={3}
+        className={`chat-input-textarea w-full theme-input text-sm rounded-lg pl-4 pr-20 py-3 focus:outline-none border-0 resize-none ${
+          streaming ? "opacity-70 cursor-not-allowed" : ""
+        }`}
+        disabled={streaming}
+      />
+      <div className="flex items-center gap-2 justify-end">
+        <button
+          onClick={onSend}
+          disabled={streaming || !value.trim()}
+          className="px-3 py-1.5 rounded theme-button-primary text-sm font-semibold disabled:opacity-50"
+        >
+          {streaming ? "Sending..." : "Send"}
+        </button>
       </div>
     </div>
   );

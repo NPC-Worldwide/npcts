@@ -16,8 +16,8 @@ interface Props {
 export const ChatInterface: React.FC<Props> = ({ services, workspacePath, models }) => {
   return (
     <ChatProvider services={services} workspacePath={workspacePath} models={models}>
-      <div className="flex h-full min-h-0 border border-gray-200 dark:border-gray-800 rounded overflow-hidden">
-        <div className="w-64 min-w-[14rem]">
+      <div className="flex h-full min-h-0 theme-bg-primary theme-text-primary border theme-border rounded-lg overflow-hidden">
+        <div className="w-72 min-w-[16rem] theme-bg-secondary theme-border border-r">
           <ConversationListWrapper />
         </div>
         <div className="flex-1 flex flex-col min-w-0">
@@ -42,10 +42,9 @@ const ConversationListWrapper: React.FC = () => {
   return (
     <ConversationList
       conversations={conversations}
-      activeId={activeConversationId}
-      onSelect={setActiveConversation}
-      onCreate={() => createConversation()}
-      onDelete={deleteConversation}
+      activeConversationId={activeConversationId}
+      onConversationSelect={setActiveConversation}
+      onRefresh={() => createConversation()}
       loading={loading}
     />
   );

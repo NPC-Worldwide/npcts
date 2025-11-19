@@ -1,45 +1,42 @@
 {
   "name": "npcts",
-  "version": "0.0.1",
-  "description": "TypeScript/React toolkit of composable viewers, editors, and AI-integrated UI primitives.",
-  "license": "MIT",
-  "main": "dist/index.cjs",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.ts",
-  "sideEffects": false,
-  "scripts": {
-    "clean": "rimraf dist",
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.{ts,tsx}\" --max-warnings=0"
-  },
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.cjs",
-      "import": "./dist/index.mjs"
-    },
-    "./adapters/electron": {
-      "types": "./dist/adapters/electron.d.ts",
-      "require": "./dist/adapters/electron.cjs",
-      "import": "./dist/adapters/electron.mjs"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
     }
   },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "check": "tsc --noEmit"
+  },
   "peerDependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "dependencies": {
+    "@codemirror/lang-javascript": "^6.2.1",
+    "@codemirror/lang-python": "^6.1.3",
+    "@uiw/react-codemirror": "^4.21.21",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "chart.js": "^4.4.0",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.294.0",
+    "react-chartjs-2": "^5.2.0",
+    "react-force-graph-2d": "^1.25.4"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.0",
-    "@typescript-eslint/eslint-plugin": "^8.16.0",
-    "@typescript-eslint/parser": "^8.16.0",
-    "eslint": "^9.18.0",
-    "eslint-plugin-react": "^7.37.4",
-    "rimraf": "^6.0.1",
-    "tsup": "^8.3.0",
-    "typescript": "^5.6.3"
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "typescript": "^5.3.3"
   }
 }
