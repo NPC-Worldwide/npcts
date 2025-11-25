@@ -16,3 +16,18 @@ export interface FileSystemClient {
   deleteDirectory(path: string): Promise<void>;
   rename(oldPath: string, newPath: string): Promise<void>;
 }
+
+/**
+ * Normalize a file path by converting backslashes to forward slashes
+ * and removing trailing slashes
+ * @param path - The path to normalize (can be null/undefined)
+ * @returns Normalized path string, or empty string if input is null/undefined
+ */
+export const normalizePath = (path: string | null | undefined): string => {
+    if (!path) return '';
+    let normalizedPath = path.replace(/\\/g, '/');
+    if (normalizedPath.endsWith('/') && normalizedPath.length > 1) {
+        normalizedPath = normalizedPath.slice(0, -1);
+    }
+    return normalizedPath;
+};

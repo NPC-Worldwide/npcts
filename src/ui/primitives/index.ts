@@ -6,9 +6,15 @@ export { ContextMenu, ContextMenuItem, ContextMenuSeparator } from './ContextMen
 export { default as AutosizeTextarea } from './AutosizeTextarea';
 export { Spinner } from './Spinner';
 export { Slider } from './Slider';
+export { RangeSlider } from './RangeSlider';
 export { TagInput } from './TagInput';
 export { StarRating } from './StarRating';
 export { Card } from './Card';
 export { Tabs } from './Tabs';
 export { DataTable } from './DataTable';
 export { FileUpload } from './FileUpload';
+export { Chart, QueryChart } from './Chart';
+export type { ChartProps, ChartDataset, QueryChartProps, QueryChartConfig } from './Chart';
+export { ImageGrid } from './ImageGrid';
+export { SortableList } from './SortableList';
+export { Lightbox } from './Lightbox';

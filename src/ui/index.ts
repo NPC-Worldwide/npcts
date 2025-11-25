@@ -1,3 +1,5 @@
+// UI module exports
+export * from './hooks';
 export * from './chat';
 export * from './files';
 export * from './viewers';
@@ -9,3 +11,10 @@ export * from './sql';
 export * from './execution';
 export * from './knowledge-graph';
 export * from './models';
+export * from './layout';
+export * from './dialogs';
+export * from './specialized';
+export * from './npc';
+export * from './jinx';
+export * from './dashboard';
+export * from './editors';
