@@ -1,5 +1,6 @@
 # This workflow will publish the package to the npm registry
 # It is triggered when a new release is created on GitHub
+# Uses GitHub's native npm auth (linked account)
 
 name: Publish to NPM
 
@@ -7,11 +8,6 @@ on:
   release:
     types: [created]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to publish (leave empty to use package.json version)'
-        required: false
-        type: string
 
 jobs:
   publish-npm:
@@ -28,13 +24,11 @@ jobs:
           registry-url: 'https://registry.npmjs.org/'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build project
         run: npm run build
 
       - name: Publish to NPM with provenance
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
