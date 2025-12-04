@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Line, Bar } from 'react-chartjs-2';
+import { Line, Bar, Pie } from 'react-chartjs-2';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -7,6 +7,7 @@ import {
     PointElement,
     LineElement,
     BarElement,
+    ArcElement,
     Title,
     Tooltip,
     Legend,
@@ -14,15 +15,132 @@ import {
     TimeScale,
     TimeSeriesScale
 } from 'chart.js';
+import { enUS } from 'date-fns/locale';
+import {
+    parse,
+    parseISO,
+    format,
+    startOfSecond,
+    startOfMinute,
+    startOfHour,
+    startOfDay,
+    startOfWeek,
+    startOfMonth,
+    startOfQuarter,
+    startOfYear,
+    addMilliseconds,
+    addSeconds,
+    addMinutes,
+    addHours,
+    addDays,
+    addWeeks,
+    addMonths,
+    addQuarters,
+    addYears,
+    differenceInMilliseconds,
+    differenceInSeconds,
+    differenceInMinutes,
+    differenceInHours,
+    differenceInDays,
+    differenceInWeeks,
+    differenceInMonths,
+    differenceInQuarters,
+    differenceInYears
+} from 'date-fns';
+import { _adapters } from 'chart.js';
+
+const FORMATS = {
+    datetime: 'MMM d, yyyy, h:mm:ss a',
+    millisecond: 'h:mm:ss.SSS a',
+    second: 'h:mm:ss a',
+    minute: 'h:mm a',
+    hour: 'ha',
+    day: 'MMM d',
+    week: 'PP',
+    month: 'MMM yyyy',
+    quarter: "'Q'Q - yyyy",
+    year: 'yyyy'
+};
+
+_adapters._date.override({
+    formats: () => FORMATS,
+    parse: (value: any, fmt?: string) => {
+        if (value === null || value === undefined) return null;
+        if (value instanceof Date) return value.getTime();
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+            if (fmt) {
+                return parse(value, fmt, new Date(), { locale: enUS }).getTime();
+            }
+            return parseISO(value).getTime();
+        }
+        return null;
+    },
+    format: (time: number, fmt: string) => format(time, fmt, { locale: enUS }),
+    add: (time: number, amount: number, unit: string) => {
+        switch (unit) {
+            case 'millisecond': return addMilliseconds(time, amount).getTime();
+            case 'second': return addSeconds(time, amount).getTime();
+            case 'minute': return addMinutes(time, amount).getTime();
+            case 'hour': return addHours(time, amount).getTime();
+            case 'day': return addDays(time, amount).getTime();
+            case 'week': return addWeeks(time, amount).getTime();
+            case 'month': return addMonths(time, amount).getTime();
+            case 'quarter': return addQuarters(time, amount).getTime();
+            case 'year': return addYears(time, amount).getTime();
+            default: return time;
+        }
+    },
+    diff: (max: number, min: number, unit: string) => {
+        switch (unit) {
+            case 'millisecond': return differenceInMilliseconds(max, min);
+            case 'second': return differenceInSeconds(max, min);
+            case 'minute': return differenceInMinutes(max, min);
+            case 'hour': return differenceInHours(max, min);
+            case 'day': return differenceInDays(max, min);
+            case 'week': return differenceInWeeks(max, min);
+            case 'month': return differenceInMonths(max, min);
+            case 'quarter': return differenceInQuarters(max, min);
+            case 'year': return differenceInYears(max, min);
+            default: return 0;
+        }
+    },
+    startOf: (time: number, unit: string) => {
+        switch (unit) {
+            case 'second': return startOfSecond(time).getTime();
+            case 'minute': return startOfMinute(time).getTime();
+            case 'hour': return startOfHour(time).getTime();
+            case 'day': return startOfDay(time).getTime();
+            case 'week': return startOfWeek(time).getTime();
+            case 'month': return startOfMonth(time).getTime();
+            case 'quarter': return startOfQuarter(time).getTime();
+            case 'year': return startOfYear(time).getTime();
+            default: return time;
+        }
+    },
+    endOf: (time: number, unit: string) => {
+        switch (unit) {
+            case 'second': return startOfSecond(time).getTime();
+            case 'minute': return startOfMinute(time).getTime();
+            case 'hour': return startOfHour(time).getTime();
+            case 'day': return startOfDay(time).getTime();
+            case 'week': return startOfWeek(time).getTime();
+            case 'month': return startOfMonth(time).getTime();
+            case 'quarter': return startOfQuarter(time).getTime();
+            case 'year': return startOfYear(time).getTime();
+            default: return time;
+        }
+    }
+});
 
 // Register chart.js scales and components
-// Note: The consuming app should import 'chartjs-adapter-date-fns' for time scale support
 ChartJS.register(
     CategoryScale,
     LinearScale,
     PointElement,
     LineElement,
     BarElement,
+    ArcElement,
     Title,
     Tooltip,
     Legend,

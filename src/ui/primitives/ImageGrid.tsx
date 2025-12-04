@@ -59,7 +59,17 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
             const isSelected = selected.has(src);
 
             if (renderItem) {
-                return <React.Fragment key={src}>{renderItem(src, isSelected)}</React.Fragment>;
+                // When using custom renderItem, wrap with click handlers
+                return (
+                    <div
+                        key={src}
+                        onClick={(e) => onSelect?.(src, e)}
+                        onDoubleClick={() => onDoubleClick?.(src)}
+                        onContextMenu={(e) => { e.preventDefault(); onContextMenu?.(src, e); }}
+                    >
+                        {renderItem(src, isSelected)}
+                    </div>
+                );
             }
 
             return (
