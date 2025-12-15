@@ -8,3 +8,4 @@ export * from './stream';
 export * from './browser';
 export * from './jobs';
 export * from './database';
+export * from './spatial';
