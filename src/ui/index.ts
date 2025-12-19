@@ -18,3 +18,4 @@ export * from './npc';
 export * from './jinx';
 export * from './dashboard';
 export * from './editors';
+export * from './spatial';

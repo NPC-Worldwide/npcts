@@ -2,10 +2,11 @@
  * useKeyboardInput Hook
  *
  * Handles keyboard input for character movement and UI controls.
+ * Properly respects when forms/menus are open.
  */
 
 import { useEffect, useCallback, useRef } from 'react';
-import type { CharacterDirection } from '../../../core/spatial';
+import type { CharacterDirection, Application } from '../../../core/spatial';
 
 interface KeyboardCallbacks {
   /** Called when movement keys are pressed (WASD or arrows) */
@@ -14,13 +15,15 @@ interface KeyboardCallbacks {
   onMoveEnd?: () => void;
   /** Called when 'O' key is pressed (open/interact) */
   onInteract?: () => void;
-  /** Called when 'E' key is pressed (add/edit) */
+  /** Called when 'E' key is pressed when NOT near an app (add app) */
   onAdd?: () => void;
+  /** Called when 'E' key is pressed when NEAR an app (edit app) */
+  onEditApp?: (app: Application) => void;
   /** Called when 'F' key is pressed (toggle edit mode) */
   onEditMode?: () => void;
   /** Called when 'R' key is pressed (add room) */
   onAddRoom?: () => void;
-  /** Called when 'M' key is pressed (toggle menu/settings) */
+  /** Called when 'M' key is pressed (toggle menu/key legend) */
   onMenu?: () => void;
   /** Called when 'H' or '?' key is pressed (show help) */
   onHelp?: () => void;
@@ -41,6 +44,12 @@ interface UseKeyboardInputOptions extends KeyboardCallbacks {
   enabled?: boolean;
   /** Whether edit mode is active (changes some key behaviors) */
   editMode?: boolean;
+  /** Whether any form overlay is open (blocks most keys) */
+  formsOpen?: boolean;
+  /** Whether app menu is open (blocks most keys) */
+  menuOpen?: boolean;
+  /** The app the character is currently near (affects 'e' key behavior) */
+  nearbyApp?: Application | null;
 }
 
 interface PressedKeys {
@@ -53,6 +62,7 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
     onMoveEnd,
     onInteract,
     onAdd,
+    onEditApp,
     onEditMode,
     onAddRoom,
     onMenu,
@@ -64,14 +74,18 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
     moveSpeed = 10,
     enabled = true,
     editMode = false,
+    formsOpen = false,
+    menuOpen = false,
+    nearbyApp = null,
   } = options;
 
   const pressedKeysRef = useRef<PressedKeys>({});
-  const callbacksRef = useRef({
+  const optionsRef = useRef({
     onMove,
     onMoveEnd,
     onInteract,
     onAdd,
+    onEditApp,
     onEditMode,
     onAddRoom,
     onMenu,
@@ -80,15 +94,20 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
     onEscape,
     onDelete,
     onCustomKey,
+    editMode,
+    formsOpen,
+    menuOpen,
+    nearbyApp,
   });
 
-  // Update callbacks ref when they change
+  // Update options ref when they change
   useEffect(() => {
-    callbacksRef.current = {
+    optionsRef.current = {
       onMove,
       onMoveEnd,
       onInteract,
       onAdd,
+      onEditApp,
       onEditMode,
       onAddRoom,
       onMenu,
@@ -97,12 +116,17 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
       onEscape,
       onDelete,
       onCustomKey,
+      editMode,
+      formsOpen,
+      menuOpen,
+      nearbyApp,
     };
   }, [
     onMove,
     onMoveEnd,
     onInteract,
     onAdd,
+    onEditApp,
     onEditMode,
     onAddRoom,
     onMenu,
@@ -111,6 +135,10 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
     onEscape,
     onDelete,
     onCustomKey,
+    editMode,
+    formsOpen,
+    menuOpen,
+    nearbyApp,
   ]);
 
   const handleKeyDown = useCallback(
@@ -118,9 +146,36 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
       if (!enabled) return;
 
       const key = event.key.toLowerCase();
-      const callbacks = callbacksRef.current;
+      const opts = optionsRef.current;
 
-      // Prevent default for game keys
+      // Ignore keys with Ctrl, Alt, or Meta modifiers (let browser/electron handle them)
+      // Exception: Ctrl+D for delete, Ctrl+Backspace/Delete
+      const hasModifier = event.ctrlKey || event.altKey || event.metaKey;
+      const isDeleteCombo = hasModifier && (key === 'd' || key === 'delete' || key === 'backspace');
+
+      if (hasModifier && !isDeleteCombo) {
+        return; // Let browser handle Ctrl+R, Ctrl+Shift+R, etc.
+      }
+
+      // When forms are open, ONLY handle Escape
+      if (opts.formsOpen) {
+        if (key === 'escape') {
+          event.preventDefault();
+          opts.onEscape?.();
+        }
+        return; // Block ALL other keys when forms are open
+      }
+
+      // When menu is open, only handle Escape and 'o' to close
+      if (opts.menuOpen) {
+        if (key === 'escape' || key === 'o') {
+          event.preventDefault();
+          opts.onEscape?.();
+        }
+        return; // Block ALL other keys when menu is open
+      }
+
+      // Prevent default for game keys (only when no modifiers)
       const gameKeys = [
         'w', 'a', 's', 'd',
         'arrowup', 'arrowdown', 'arrowleft', 'arrowright',
@@ -133,78 +188,93 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
       // Track pressed keys
       pressedKeysRef.current[key] = true;
 
-      // Handle movement keys (only if not in edit mode or allowed)
-      if (!editMode) {
-        let dx = 0;
-        let dy = 0;
-        let direction: CharacterDirection | null = null;
-
-        switch (key) {
-          case 'w':
-          case 'arrowup':
-            dy = -moveSpeed;
-            direction = 'up';
-            break;
-          case 's':
-          case 'arrowdown':
-            dy = moveSpeed;
-            direction = 'down';
-            break;
-          case 'a':
-          case 'arrowleft':
-            dx = -moveSpeed;
-            direction = 'left';
-            break;
-          case 'd':
-          case 'arrowright':
-            dx = moveSpeed;
-            direction = 'right';
-            break;
+      // When in edit mode, only 'f' works to exit (plus movement is blocked)
+      if (opts.editMode) {
+        if (key === 'f') {
+          opts.onEditMode?.();
         }
+        return; // Block other keys in edit mode
+      }
 
-        if (direction && callbacks.onMove) {
-          callbacks.onMove(dx, dy, direction);
-          return;
-        }
+      // Handle movement keys
+      let dx = 0;
+      let dy = 0;
+      let direction: CharacterDirection | null = null;
+
+      switch (key) {
+        case 'w':
+        case 'arrowup':
+          dy = -moveSpeed;
+          direction = 'up';
+          break;
+        case 's':
+        case 'arrowdown':
+          dy = moveSpeed;
+          direction = 'down';
+          break;
+        case 'a':
+        case 'arrowleft':
+          dx = -moveSpeed;
+          direction = 'left';
+          break;
+        case 'd':
+        case 'arrowright':
+          dx = moveSpeed;
+          direction = 'right';
+          break;
+      }
+
+      if (direction && opts.onMove) {
+        opts.onMove(dx, dy, direction);
+        return;
       }
 
       // Handle other keys
       switch (key) {
         case 'o':
-          callbacks.onInteract?.();
+          console.log('o key pressed, calling onInteract');
+          opts.onInteract?.();
           break;
         case 'e':
-          callbacks.onAdd?.();
+          // Differentiate: near app = edit, not near app = add
+          if (opts.nearbyApp) {
+            opts.onEditApp?.(opts.nearbyApp);
+          } else {
+            opts.onAdd?.();
+          }
           break;
         case 'f':
-          callbacks.onEditMode?.();
+          opts.onEditMode?.();
           break;
         case 'r':
-          callbacks.onAddRoom?.();
+          // Only allow adding room when NOT near an app
+          if (!opts.nearbyApp) {
+            opts.onAddRoom?.();
+          }
           break;
         case 'm':
-          callbacks.onMenu?.();
+          opts.onMenu?.();
           break;
         case 'h':
         case '?':
-          callbacks.onHelp?.();
+          opts.onHelp?.();
           break;
         case ' ':
-          callbacks.onSpace?.();
+          opts.onSpace?.();
           break;
         case 'escape':
-          callbacks.onEscape?.();
+          opts.onEscape?.();
           break;
         default:
-          // Handle Ctrl+Delete/Backspace
+          // Handle Ctrl+Delete/Backspace (delete app)
           if ((key === 'delete' || key === 'backspace') && event.ctrlKey) {
-            callbacks.onDelete?.();
+            opts.onDelete?.();
           } else {
-            callbacks.onCustomKey?.(key, event);
+            opts.onCustomKey?.(key, event);
           }
       }
     },
-    [enabled, editMode, moveSpeed]
+    [enabled, moveSpeed]
   );
 
   const handleKeyUp = useCallback(
@@ -222,7 +292,7 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
       );
 
       if (!anyMovementPressed) {
-        callbacksRef.current.onMoveEnd?.();
+        optionsRef.current.onMoveEnd?.();
       }
     },
     []

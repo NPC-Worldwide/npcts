@@ -1,6 +1,6 @@
 {
   "name": "npcts",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "NPC TypeScript SDK - A comprehensive UI component library for building AI-powered applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,6 +23,18 @@
     "./adapters": {
       "import": "./dist/adapters/index.js",
       "types": "./dist/adapters/index.d.ts"
+    },
+    "./spatial": {
+      "import": "./dist/ui/spatial/index.js",
+      "types": "./dist/ui/spatial/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts"
+    },
+    "./server/spatial": {
+      "import": "./dist/server/spatial/index.js",
+      "types": "./dist/server/spatial/index.d.ts"
     }
   },
   "files": [
@@ -36,7 +48,10 @@
     "ui",
     "components",
     "react",
-    "typescript"
+    "typescript",
+    "spatial",
+    "game-ui",
+    "room-navigation"
   ],
   "repository": {
     "type": "git",
@@ -69,8 +84,13 @@
     "react-force-graph-2d": "^1.25.4"
   },
   "devDependencies": {
+    "@types/node": "^20.10.0",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
     "typescript": "^5.3.3"
+  },
+  "optionalDependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
   }
 }

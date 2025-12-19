@@ -117,6 +117,79 @@ interface SpatialContextValue {
 
   // Image upload
   uploadImage: (file: File | Blob, filename?: string) => Promise<string>;
+
+  // UI State - forms and menus
+  showMenu: boolean;
+  menuItems: Record<string, any> | null;
+  menuApp: Application | null;
+  isEditingMenu: boolean;
+  showAddAppForm: boolean;
+  showAddRoomForm: boolean;
+  showEditAppForm: boolean;
+  editingApp: Application | null;
+  nearbyApp: Application | null;
+  showSettings: boolean;
+
+  // User Settings
+  userSettings: UserSettings;
+
+  // UI Methods
+  openAppMenu: (app: Application) => void;
+  closeAppMenu: () => void;
+  toggleMenuEditMode: () => void;
+  deleteMenuItem: (itemName: string) => void;
+  addMenuItem: () => void;
+  openAddAppForm: () => void;
+  openAddRoomForm: () => void;
+  openEditAppForm: (app: Application) => void;
+  closeAllForms: () => void;
+  setNearbyApp: (app: Application | null) => void;
+  openSettings: () => void;
+  closeSettings: () => void;
+  updateUserSettings: (settings: UserSettings) => void;
+
+  // Avatar Editor
+  showAvatarEditor: boolean;
+  openAvatarEditor: () => void;
+  closeAvatarEditor: () => void;
+  updateAvatarSettings: (settings: AvatarSettings) => void;
+}
+
+// Avatar Settings type
+export interface AvatarSettings {
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  outlineColor: string;
+  size: number; // 0.5 to 2.0 scale
+  showNameTag: boolean;
+  nameTagColor: string;
+  trailEffect: 'none' | 'sparkle' | 'glow' | 'shadow';
+  accessory: 'none' | 'hat' | 'glasses' | 'crown' | 'halo';
+}
+
+export const DEFAULT_AVATAR_SETTINGS: AvatarSettings = {
+  name: 'Player',
+  primaryColor: '#4a90d9',
+  secondaryColor: '#2d5a8a',
+  outlineColor: '#1a3a5c',
+  size: 1.0,
+  showNameTag: true,
+  nameTagColor: '#ffffff',
+  trailEffect: 'none',
+  accessory: 'none',
+};
+
+// User Settings type
+export interface UserSettings {
+  defaultBrowser: string;
+  browserArgs?: string;
+  defaultMediaPlayer: string;
+  theme?: 'dark' | 'light' | 'system';
+  showKeyLegend?: boolean;
+  showMinimap?: boolean;
+  moveSpeed?: number;
+  avatar?: AvatarSettings;
 }
 
 const SpatialContext = createContext<SpatialContextValue | undefined>(
@@ -165,6 +238,41 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
 
   // Current room data (converted to pixels)
   const [currentRoomData, setCurrentRoomData] = useState<Room | null>(null);
+
+  // UI State - forms and menus
+  const [showMenu, setShowMenu] = useState(false);
+  const [menuItems, setMenuItems] = useState<Record<string, any> | null>(null);
+  const [menuApp, setMenuApp] = useState<Application | null>(null);
+  const [isEditingMenu, setIsEditingMenu] = useState(false);
+  const [showAddAppForm, setShowAddAppForm] = useState(false);
+  const [showAddRoomForm, setShowAddRoomForm] = useState(false);
+  const [showEditAppForm, setShowEditAppForm] = useState(false);
+  const [editingApp, setEditingApp] = useState<Application | null>(null);
+  const [nearbyApp, setNearbyApp] = useState<Application | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [showAvatarEditor, setShowAvatarEditor] = useState(false);
+
+  // User Settings - load from localStorage if available
+  const [userSettings, setUserSettings] = useState<UserSettings>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('spatialUserSettings');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+    return {
+      defaultBrowser: 'firefox',
+      browserArgs: '--start-fullscreen --app=',
+      defaultMediaPlayer: 'youtube-music',
+      showKeyLegend: true,
+      showMinimap: false,
+      avatar: DEFAULT_AVATAR_SETTINGS,
+    };
+  });
 
   // Refs for stable callbacks
   const configRef = useRef(config);
@@ -362,6 +470,142 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
 
   const toggleEditMode = useCallback(() => {
     setEditMode((prev) => !prev);
+  }, []);
+
+  // =============================================================================
+  // UI State Management
+  // =============================================================================
+
+  const openAppMenu = useCallback((app: Application) => {
+    console.log('openAppMenu called with app:', app);
+    console.log('app.menuItems:', app.menuItems);
+    if (app.menuItems && Object.keys(app.menuItems).length > 0) {
+      console.log('Setting showMenu to true');
+      setMenuApp(app);
+      setMenuItems(app.menuItems);
+      setShowMenu(true);
+    } else {
+      console.log('No menuItems found, not opening menu');
+    }
+  }, []);
+
+  const closeAppMenu = useCallback(() => {
+    setShowMenu(false);
+    setMenuItems(null);
+    setMenuApp(null);
+  }, []);
+
+  const openAddAppForm = useCallback(() => {
+    closeAppMenu();
+    setShowAddAppForm(true);
+  }, [closeAppMenu]);
+
+  const openAddRoomForm = useCallback(() => {
+    closeAppMenu();
+    setShowAddRoomForm(true);
+  }, [closeAppMenu]);
+
+  const openEditAppForm = useCallback((app: Application) => {
+    closeAppMenu();
+    setEditingApp(app);
+    setShowEditAppForm(true);
+  }, [closeAppMenu]);
+
+  const closeAllForms = useCallback(() => {
+    setShowMenu(false);
+    setMenuItems(null);
+    setMenuApp(null);
+    setIsEditingMenu(false);
+    setShowAddAppForm(false);
+    setShowAddRoomForm(false);
+    setShowEditAppForm(false);
+    setEditingApp(null);
+    setShowSettings(false);
+    setShowAvatarEditor(false);
+  }, []);
+
+  const toggleMenuEditMode = useCallback(() => {
+    setIsEditingMenu(prev => !prev);
+  }, []);
+
+  const deleteMenuItem = useCallback((itemName: string) => {
+    if (!menuApp || !menuItems) return;
+
+    // Remove from local state
+    const newMenuItems = { ...menuItems };
+    delete newMenuItems[itemName];
+    setMenuItems(newMenuItems);
+
+    // Update the config
+    setConfig(prev => {
+      if (!prev) return prev;
+      const appName = Object.entries(prev.rooms[currentRoom]?.applications || {})
+        .find(([_, app]) => app.name === menuApp.name)?.[0];
+      if (!appName) return prev;
+
+      const updatedApp = { ...prev.rooms[currentRoom].applications[appName] };
+      if (updatedApp.menuItems) {
+        delete updatedApp.menuItems[itemName];
+      }
+
+      return {
+        ...prev,
+        rooms: {
+          ...prev.rooms,
+          [currentRoom]: {
+            ...prev.rooms[currentRoom],
+            applications: {
+              ...prev.rooms[currentRoom].applications,
+              [appName]: updatedApp,
+            },
+          },
+        },
+      };
+    });
+  }, [menuApp, menuItems, currentRoom]);
+
+  const addMenuItem = useCallback(() => {
+    // Open add app form in menu item mode
+    setShowAddAppForm(true);
+  }, []);
+
+  // Settings methods
+  const openSettings = useCallback(() => {
+    closeAppMenu();
+    setShowSettings(true);
+  }, [closeAppMenu]);
+
+  const closeSettings = useCallback(() => {
+    setShowSettings(false);
+  }, []);
+
+  const updateUserSettings = useCallback((newSettings: UserSettings) => {
+    setUserSettings(newSettings);
+    // Persist to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spatialUserSettings', JSON.stringify(newSettings));
+    }
+  }, []);
+
+  // Avatar Editor methods
+  const openAvatarEditor = useCallback(() => {
+    closeAppMenu();
+    setShowAvatarEditor(true);
+  }, [closeAppMenu]);
+
+  const closeAvatarEditor = useCallback(() => {
+    setShowAvatarEditor(false);
+  }, []);
+
+  const updateAvatarSettings = useCallback((newAvatarSettings: AvatarSettings) => {
+    setUserSettings(prev => {
+      const updated = { ...prev, avatar: newAvatarSettings };
+      // Persist to localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('spatialUserSettings', JSON.stringify(updated));
+      }
+      return updated;
+    });
   }, []);
 
   // =============================================================================
@@ -588,20 +832,79 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
   // Command Execution
   // =============================================================================
 
+  // Common browser command names to substitute
+  const BROWSER_COMMANDS = [
+    'chromium',
+    'chromium-browser',
+    'google-chrome',
+    'google-chrome-stable',
+    'firefox',
+    'brave-browser',
+    'brave',
+    'microsoft-edge',
+    'edge',
+    'safari',
+  ];
+
+  // Common media player command names to substitute
+  const MEDIA_PLAYER_COMMANDS = [
+    'spotify',
+    'youtube-music',
+    'apple-music',
+    'open -a Music', // macOS Apple Music
+    'vlc',
+    'soundcloud',
+    'tidal',
+  ];
+
   const executeCommand = useCallback(
     async (command: string): Promise<CommandResult> => {
       if (!commandClient) {
         return { error: 'Command execution not available' };
       }
+
+      // Substitute browser commands with user's default browser
+      let processedCommand = command;
+      const defaultBrowser = userSettings.defaultBrowser;
+      const defaultMediaPlayer = userSettings.defaultMediaPlayer;
+
+      if (defaultBrowser) {
+        // Check if command starts with a known browser
+        for (const browser of BROWSER_COMMANDS) {
+          if (command.startsWith(browser + ' ') || command === browser) {
+            processedCommand = command.replace(
+              new RegExp(`^${browser}(\\s|$)`),
+              defaultBrowser + '$1'
+            );
+            console.log(`Substituted browser: ${browser} -> ${defaultBrowser}`);
+            break;
+          }
+        }
+      }
+
+      // Substitute media player commands with user's default media player
+      if (defaultMediaPlayer) {
+        for (const player of MEDIA_PLAYER_COMMANDS) {
+          if (processedCommand.startsWith(player + ' ') || processedCommand === player) {
+            processedCommand = processedCommand.replace(
+              new RegExp(`^${player.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`),
+              defaultMediaPlayer + '$1'
+            );
+            console.log(`Substituted media player: ${player} -> ${defaultMediaPlayer}`);
+            break;
+          }
+        }
+      }
+
       try {
-        return await commandClient.executeCommand(command);
+        return await commandClient.executeCommand(processedCommand);
       } catch (err) {
         return {
           error: err instanceof Error ? err.message : 'Command failed',
         };
       }
     },
-    [commandClient]
+    [commandClient, userSettings.defaultBrowser, userSettings.defaultMediaPlayer]
   );
 
   const getRunningApps = useCallback(async (): Promise<string[]> => {
@@ -687,6 +990,42 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
 
     // Image upload
     uploadImage,
+
+    // UI State - forms and menus
+    showMenu,
+    menuItems,
+    menuApp,
+    isEditingMenu,
+    showAddAppForm,
+    showAddRoomForm,
+    showEditAppForm,
+    editingApp,
+    nearbyApp,
+    showSettings,
+
+    // User Settings
+    userSettings,
+
+    // UI Methods
+    openAppMenu,
+    closeAppMenu,
+    toggleMenuEditMode,
+    deleteMenuItem,
+    addMenuItem,
+    openAddAppForm,
+    openAddRoomForm,
+    openEditAppForm,
+    closeAllForms,
+    setNearbyApp,
+    openSettings,
+    closeSettings,
+    updateUserSettings,
+
+    // Avatar Editor
+    showAvatarEditor,
+    openAvatarEditor,
+    closeAvatarEditor,
+    updateAvatarSettings,
   };
 
   return (

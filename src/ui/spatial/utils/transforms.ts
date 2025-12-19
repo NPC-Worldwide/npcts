@@ -111,21 +111,36 @@ export function doorConfigToPixels(
   viewport: ViewportDimensions,
   wallHeight: number
 ): Door {
-  const x = percentToPixels(config.x, viewport.width);
-  const y = percentToPixels(config.y, viewport.height);
-
+  let x = percentToPixels(config.x, viewport.width);
+  let y = percentToPixels(config.y, viewport.height);
   let width: number, height: number;
 
   if (config.orientation === 'up' || config.orientation === 'down') {
     // Horizontal doors on top/bottom walls
-    width = wallHeight; // 80% of wall height
+    width = config.width
+      ? percentToPixels(config.width, viewport.width)
+      : wallHeight;
     height = wallHeight;
+
+    // Position door ON the wall based on orientation
+    if (config.orientation === 'up') {
+      y = 0; // Top wall
+    } else {
+      y = viewport.height - wallHeight; // Bottom wall
+    }
   } else {
     // Vertical doors on left/right walls
     width = viewport.wallWidthX;
     height = config.height
       ? percentToPixels(config.height, viewport.height)
       : wallHeight;
+
+    // Position door ON the wall based on orientation
+    if (config.orientation === 'left') {
+      x = 0; // Left wall
+    } else if (config.orientation === 'right') {
+      x = viewport.width - viewport.wallWidthX; // Right wall
+    }
   }
 
   return {
@@ -153,6 +168,25 @@ export function applicationConfigToPixels(
   const width = percentToPixels(config.width, viewport.wallWidthX);
   const height = percentToPixels(config.height, viewport.wallWidthY);
 
+  // Convert menuItems from MenuItemConfig to Application
+  const menuItems: Record<string, Application> = {};
+  if (config.menuItems) {
+    for (const [itemName, itemConfig] of Object.entries(config.menuItems)) {
+      menuItems[itemName] = {
+        x: 0,
+        y: 0,
+        width: itemConfig.width ?? 50,
+        height: itemConfig.height ?? 50,
+        name: itemConfig.name,
+        command: itemConfig.command,
+        image: itemConfig.image,
+        rotation: itemConfig.rotation ?? 0,
+        opened: false,
+        menuItems: {},
+      };
+    }
+  }
+
   return {
     x,
     y,
@@ -164,7 +198,7 @@ export function applicationConfigToPixels(
     image: config.image,
     rotation: config.rotation ?? 0,
     opened: false,
-    menuItems: {}, // Menu items will be loaded separately
+    menuItems,
   };
 }
 

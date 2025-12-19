@@ -5,10 +5,57 @@ export * from "./core/layout";
 export * from "./core/files";
 export * from "./core/utils";
 export * from "./core/database";
+export * from "./core/vm";
+
+// Spatial core types (exclude conflicting names that are also in ui/spatial components)
+export type {
+  Vector2D,
+  Dimensions,
+  BoundingBox,
+  WallOrientation,
+  DoorDirection,
+  CharacterDirection,
+  WallStyle,
+  WallPosition,
+  WallConfig,
+  DoorConfig,
+  MenuItemConfig,
+  ApplicationConfig,
+  RoomConfig,
+  CharacterConfig,
+  SpriteSheets,
+  SpatialWorldConfig,
+  CharacterState,
+  SpatialWorldState,
+  CommandResult,
+  RunningApp,
+  ImageUploadResult,
+  CollisionCheckResult,
+  CollisionContext,
+  SpatialEventType,
+  SpatialEvent,
+  RoomChangeEvent,
+  AppOpenEvent,
+  CharacterMoveEvent,
+  EditorSelection,
+  DragState,
+  ViewportDimensions,
+  LoadedImage,
+  SpatialConfigClient,
+  CommandExecutionClient,
+  ImageUploadClient,
+  // Export the interface types with different names to avoid conflicts
+  Wall as WallData,
+  Door as DoorData,
+  Application as ApplicationData,
+  Room as RoomData,
+  Character as CharacterData,
+} from "./core/spatial";
 
 // Adapters
 export * from "./adapters/base";
 export { createElectronAdapter } from "./adapters/electron/bridge";
+export * from "./adapters/http";
 
 // UI Hooks
 export * from "./ui/hooks";
@@ -30,3 +77,4 @@ export * from "./ui/execution";
 export * from "./ui/models";
 export * from "./ui/dashboard";
 export * from "./ui/editors";
+export * from "./ui/spatial";
