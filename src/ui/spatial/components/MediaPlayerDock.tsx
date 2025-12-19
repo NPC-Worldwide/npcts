@@ -1,17 +1,20 @@
 /**
  * BottomDock Component
  *
- * Embedded dock in bottom wall with media player, messages, email, calendar.
- * Uses webview for Electron to bypass X-Frame-Options.
+ * Shows selected media player, messages, email, calendar from user settings.
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export interface MediaPlayerDockProps {
+  mediaPlayer: string;
+  messages: string;
+  email: string;
+  calendar: string;
   visible?: boolean;
 }
 
@@ -23,33 +26,55 @@ interface DockItem {
 }
 
 // =============================================================================
-// Services
+// Service lookups
 // =============================================================================
 
-const MEDIA_SERVICES: DockItem[] = [
-  { id: 'youtube-music', icon: '▶️', label: 'YouTube', url: 'https://music.youtube.com' },
-  { id: 'spotify', icon: '🎵', label: 'Spotify', url: 'https://open.spotify.com' },
-  { id: 'soundcloud', icon: '☁️', label: 'SoundCloud', url: 'https://soundcloud.com' },
-  { id: 'apple-music', icon: '🍎', label: 'Apple', url: 'https://music.apple.com' },
-  { id: 'vlc', icon: '🎬', label: 'VLC', url: 'https://www.videolan.org/vlc/' },
-];
+const MEDIA_MAP: Record<string, DockItem> = {
+  'youtube-music': { id: 'youtube-music', icon: '▶️', label: 'YouTube', url: 'https://music.youtube.com' },
+  'spotify': { id: 'spotify', icon: '🎵', label: 'Spotify', url: 'https://open.spotify.com' },
+  'soundcloud': { id: 'soundcloud', icon: '☁️', label: 'SoundCloud', url: 'https://soundcloud.com' },
+  'apple-music': { id: 'apple-music', icon: '🍎', label: 'Apple', url: 'https://music.apple.com' },
+  'tidal': { id: 'tidal', icon: '🌊', label: 'Tidal', url: 'https://listen.tidal.com' },
+};
 
-const COMM_SERVICES: DockItem[] = [
-  { id: 'messages', icon: '💬', label: 'Messages', url: 'https://messages.google.com' },
-  { id: 'email', icon: '📧', label: 'Email', url: 'https://mail.google.com' },
-  { id: 'calendar', icon: '📅', label: 'Calendar', url: 'https://calendar.google.com' },
-];
+const MESSAGES_MAP: Record<string, DockItem> = {
+  'google-messages': { id: 'google-messages', icon: '💬', label: 'Messages', url: 'https://messages.google.com' },
+  'whatsapp': { id: 'whatsapp', icon: '📱', label: 'WhatsApp', url: 'https://web.whatsapp.com' },
+  'telegram': { id: 'telegram', icon: '✈️', label: 'Telegram', url: 'https://web.telegram.org' },
+  'discord': { id: 'discord', icon: '🎮', label: 'Discord', url: 'https://discord.com/app' },
+  'slack': { id: 'slack', icon: '💼', label: 'Slack', url: 'https://app.slack.com' },
+  'signal': { id: 'signal', icon: '🔒', label: 'Signal', url: 'https://signal.org' },
+};
+
+const EMAIL_MAP: Record<string, DockItem> = {
+  'gmail': { id: 'gmail', icon: '📧', label: 'Gmail', url: 'https://mail.google.com' },
+  'outlook': { id: 'outlook', icon: '📬', label: 'Outlook', url: 'https://outlook.live.com' },
+  'protonmail': { id: 'protonmail', icon: '🔐', label: 'Proton', url: 'https://mail.proton.me' },
+  'yahoo': { id: 'yahoo', icon: '📨', label: 'Yahoo', url: 'https://mail.yahoo.com' },
+  'fastmail': { id: 'fastmail', icon: '⚡', label: 'Fastmail', url: 'https://app.fastmail.com' },
+};
+
+const CALENDAR_MAP: Record<string, DockItem> = {
+  'google-calendar': { id: 'google-calendar', icon: '📅', label: 'Calendar', url: 'https://calendar.google.com' },
+  'outlook-calendar': { id: 'outlook-calendar', icon: '🗓️', label: 'Outlook', url: 'https://outlook.live.com/calendar' },
+  'notion': { id: 'notion', icon: '📓', label: 'Notion', url: 'https://notion.so' },
+  'todoist': { id: 'todoist', icon: '✅', label: 'Todoist', url: 'https://todoist.com' },
+};
 
 // Check if running in Electron
 const isElectron = typeof window !== 'undefined' &&
-  (window as any).process?.type === 'renderer' ||
-  typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron');
+  ((window as any).process?.type === 'renderer' ||
+  (typeof navigator !== 'undefined' && navigator.userAgent.toLowerCase().includes('electron')));
 
 // =============================================================================
 // Component
 // =============================================================================
 
 export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
+  mediaPlayer = 'youtube-music',
+  messages = 'google-messages',
+  email = 'gmail',
+  calendar = 'google-calendar',
   visible = true,
 }) => {
   const [activePanel, setActivePanel] = useState<string | null>(null);
@@ -59,19 +84,17 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
 
   if (!visible) return null;
 
-  const allItems: DockItem[] = [
-    ...MEDIA_SERVICES,
-    ...COMM_SERVICES,
+  const items: DockItem[] = [
+    MEDIA_MAP[mediaPlayer] || MEDIA_MAP['youtube-music'],
+    MESSAGES_MAP[messages] || MESSAGES_MAP['google-messages'],
+    EMAIL_MAP[email] || EMAIL_MAP['gmail'],
+    CALENDAR_MAP[calendar] || CALENDAR_MAP['google-calendar'],
   ];
 
-  const activeItem = allItems.find(item => item.id === activePanel);
+  const activeItem = items.find(item => item.id === activePanel);
 
   const togglePanel = (id: string) => {
-    if (activePanel === id) {
-      setActivePanel(null);
-    } else {
-      setActivePanel(id);
-    }
+    setActivePanel(activePanel === id ? null : id);
   };
 
   const panelWidth = panelSize === 'large' ? 900 : 450;
@@ -83,7 +106,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
       {activePanel && activeItem && (
         <div style={{
           position: 'fixed',
-          bottom: 56,
+          bottom: 52,
           right: 8,
           width: panelWidth,
           height: panelHeight,
@@ -96,7 +119,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
           flexDirection: 'column',
           boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
         }}>
-          {/* Panel Header */}
+          {/* Header */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -110,49 +133,29 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
               {activeItem.icon} {activeItem.label}
             </span>
             <div style={{ display: 'flex', gap: 4 }}>
-              {/* Size toggle */}
               <button
                 onClick={() => setPanelSize(panelSize === 'normal' ? 'large' : 'normal')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#888',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  padding: '2px 6px',
-                }}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}
                 title={panelSize === 'normal' ? 'Expand' : 'Shrink'}
               >
                 {panelSize === 'normal' ? '⤢' : '⤡'}
               </button>
-              {/* Close */}
               <button
                 onClick={() => setActivePanel(null)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: '#888',
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  padding: '2px 6px',
-                }}
+                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}
               >
                 ✕
               </button>
             </div>
           </div>
 
-          {/* Embedded content - use webview in Electron, iframe otherwise */}
+          {/* Webview or iframe */}
           {isElectron ? (
             <webview
               ref={webviewRef as any}
               src={activeItem.url}
-              style={{
-                flex: 1,
-                width: '100%',
-                border: 'none',
-              }}
-              // @ts-ignore - webview attributes
+              style={{ flex: 1, width: '100%', border: 'none' }}
+              // @ts-ignore
               allowpopups="true"
               // @ts-ignore
               useragent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -160,12 +163,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
           ) : (
             <iframe
               src={activeItem.url}
-              style={{
-                flex: 1,
-                width: '100%',
-                border: 'none',
-                backgroundColor: '#000',
-              }}
+              style={{ flex: 1, width: '100%', border: 'none', backgroundColor: '#000' }}
               allow="autoplay; encrypted-media; fullscreen"
               title={activeItem.label}
             />
@@ -180,7 +178,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
         right: 0,
         display: 'flex',
         alignItems: 'flex-end',
-        gap: 2,
+        gap: 4,
         padding: '6px 12px 4px 12px',
         background: 'linear-gradient(to top, rgba(50,35,25,0.98) 0%, rgba(70,50,35,0.95) 100%)',
         borderTop: '2px solid #6a5040',
@@ -188,8 +186,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
         borderTopLeftRadius: 8,
         zIndex: 100,
       }}>
-        {/* Media Services */}
-        {MEDIA_SERVICES.map((item) => (
+        {items.map((item) => (
           <button
             key={item.id}
             onClick={() => togglePanel(item.id)}
@@ -200,7 +197,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              padding: '4px 6px',
+              padding: '4px 8px',
               background: activePanel === item.id
                 ? 'rgba(255,255,255,0.2)'
                 : hoveredItem === item.id
@@ -213,56 +210,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
             }}
           >
             <span style={{ fontSize: 18 }}>{item.icon}</span>
-            <span style={{
-              fontSize: 8,
-              color: activePanel === item.id ? '#fff' : '#aaa',
-              marginTop: 1,
-              whiteSpace: 'nowrap',
-            }}>
-              {item.label}
-            </span>
-          </button>
-        ))}
-
-        {/* Separator */}
-        <div style={{
-          width: 1,
-          height: 32,
-          backgroundColor: '#6a5040',
-          margin: '0 4px',
-        }} />
-
-        {/* Communication Services */}
-        {COMM_SERVICES.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => togglePanel(item.id)}
-            onMouseEnter={() => setHoveredItem(item.id)}
-            onMouseLeave={() => setHoveredItem(null)}
-            title={item.label}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '4px 6px',
-              background: activePanel === item.id
-                ? 'rgba(255,255,255,0.2)'
-                : hoveredItem === item.id
-                  ? 'rgba(255,255,255,0.1)'
-                  : 'transparent',
-              border: activePanel === item.id ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent',
-              borderRadius: 4,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-          >
-            <span style={{ fontSize: 18 }}>{item.icon}</span>
-            <span style={{
-              fontSize: 8,
-              color: activePanel === item.id ? '#fff' : '#aaa',
-              marginTop: 1,
-              whiteSpace: 'nowrap',
-            }}>
+            <span style={{ fontSize: 8, color: activePanel === item.id ? '#fff' : '#aaa', marginTop: 1 }}>
               {item.label}
             </span>
           </button>
