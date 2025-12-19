@@ -2,6 +2,7 @@
  * Character Component
  *
  * Renders an animated character sprite with direction-based animation.
+ * Supports avatar customization including color tints, accessories, and effects.
  */
 
 import React, { useMemo, useState, useEffect } from 'react';
@@ -11,6 +12,30 @@ import type {
   SpriteSheets,
 } from '../../../core/spatial';
 import { getCurrentSprite, getDirectionRotation } from '../hooks/useCharacter';
+
+// =============================================================================
+// Avatar Settings Type
+// =============================================================================
+
+export interface AvatarSettings {
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  outlineColor: string;
+  size: number; // 0.5 to 2.0 scale
+  showNameTag: boolean;
+  nameTagColor: string;
+  trailEffect: 'none' | 'sparkle' | 'glow' | 'shadow';
+  accessory: 'none' | 'hat' | 'glasses' | 'crown' | 'halo';
+}
+
+// Accessory emojis
+const ACCESSORY_EMOJIS: Record<string, string> = {
+  hat: '🎩',
+  glasses: '👓',
+  crown: '👑',
+  halo: '😇',
+};
 
 // =============================================================================
 // Component Props
@@ -29,6 +54,8 @@ interface CharacterProps {
   name?: string;
   /** Whether to use rotation or separate sprites per direction */
   useRotation?: boolean;
+  /** Avatar customization settings */
+  avatarSettings?: AvatarSettings;
   /** Additional class name */
   className?: string;
   /** Additional styles */
@@ -48,6 +75,7 @@ export const Character: React.FC<CharacterProps> = ({
   height,
   name = 'Character',
   useRotation = false,
+  avatarSettings,
   className = '',
   style: customStyle,
   onClick,
@@ -61,6 +89,11 @@ export const Character: React.FC<CharacterProps> = ({
     right: [],
   });
   const [spritesLoaded, setSpritesLoaded] = useState(false);
+
+  // Calculate scaled dimensions based on avatar settings
+  const scale = avatarSettings?.size ?? 1.0;
+  const scaledWidth = width * scale;
+  const scaledHeight = height * scale;
 
   // Preload all sprite images
   useEffect(() => {

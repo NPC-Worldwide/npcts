@@ -95,3 +95,8 @@ export {
   type UsageTrackerProps,
   type UsageData,
 } from './UsageTracker';
+export {
+  ControlPanel,
+  type ControlPanelProps,
+  type AppInfo,
+} from './ControlPanel';
