@@ -110,6 +110,8 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
     openEditAppForm,
     closeAllForms,
     setNearbyApp: setContextNearbyApp,
+    // User settings
+    userSettings,
   } = useSpatial();
 
   // Local state
@@ -472,8 +474,9 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
           spriteSheets={config.userCharacter.spriteSheets}
           width={config.userCharacter.width}
           height={config.userCharacter.height}
-          name={config.userCharacter.name}
+          name={userSettings.avatar?.name || config.userCharacter.name}
           useRotation={true}
+          avatarSettings={userSettings.avatar}
         />
       </Room>
 

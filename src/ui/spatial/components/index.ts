@@ -11,7 +11,7 @@ export {
   FLOOR_PATTERN_SIZES,
   type FloorPatternType,
 } from './FloorPattern';
-export { Character, SimpleCharacter } from './Character';
+export { Character, SimpleCharacter, type AvatarSettings as CharacterAvatarSettings } from './Character';
 export { Application, ApplicationMenu, ApplicationGrid } from './Application';
 export { Room, EditModeOverlay, Minimap } from './Room';
 export { SpatialWorld } from './SpatialWorld';

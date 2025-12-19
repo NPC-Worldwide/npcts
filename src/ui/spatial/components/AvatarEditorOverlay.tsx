@@ -28,6 +28,8 @@ export interface AvatarEditorOverlayProps {
   onClose: () => void;
   settings: AvatarSettings;
   onSave: (settings: AvatarSettings) => void;
+  /** Sprite URL to show in preview (e.g., Aurelianos sprite) */
+  previewSpriteUrl?: string;
 }
 
 // =============================================================================
@@ -349,11 +351,44 @@ const styles: Record<string, React.CSSProperties> = {
 // AvatarEditorOverlay Component
 // =============================================================================
 
+// Helper to calculate color filter from hex color
+const getColorFilter = (hexColor: string) => {
+  if (!hexColor) return 'none';
+
+  const hex = hexColor;
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  // Calculate hue from RGB
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let hue = 0;
+
+  if (max !== min) {
+    const d = max - min;
+    if (max === r) hue = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+    else if (max === g) hue = ((b - r) / d + 2) * 60;
+    else hue = ((r - g) / d + 4) * 60;
+  }
+
+  // Aurelianos is roughly blue (hue ~200), so calculate offset
+  const baseHue = 200;
+  const hueRotate = hue - baseHue;
+
+  // Also adjust saturation based on color intensity
+  const saturation = max === 0 ? 0 : ((max - min) / max) * 100;
+  const saturationAdjust = saturation / 50;
+
+  return `hue-rotate(${hueRotate}deg) saturate(${saturationAdjust})`;
+};
+
 export const AvatarEditorOverlay: React.FC<AvatarEditorOverlayProps> = ({
   visible,
   onClose,
   settings,
   onSave,
+  previewSpriteUrl,
 }) => {
   const [local, setLocal] = useState<AvatarSettings>(settings);
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
@@ -391,18 +426,32 @@ export const AvatarEditorOverlay: React.FC<AvatarEditorOverlayProps> = ({
     }
   };
 
+  // Generate color filter for sprite
+  const colorFilter = getColorFilter(local.primaryColor);
+
   // Generate avatar preview style
   const avatarStyle: React.CSSProperties = {
     ...styles.previewAvatar,
     width: 60 * local.size,
     height: 60 * local.size,
-    background: `radial-gradient(circle at 30% 30%, ${local.primaryColor}, ${local.secondaryColor})`,
-    border: `3px solid ${local.outlineColor}`,
+    ...(previewSpriteUrl ? {} : {
+      background: `radial-gradient(circle at 30% 30%, ${local.primaryColor}, ${local.secondaryColor})`,
+      border: `3px solid ${local.outlineColor}`,
+    }),
     boxShadow: local.trailEffect === 'glow'
       ? `0 0 20px ${local.primaryColor}80`
       : local.trailEffect === 'shadow'
       ? '5px 5px 15px rgba(0,0,0,0.5)'
       : 'none',
+  };
+
+  // Sprite style with color filter
+  const spriteStyle: React.CSSProperties = {
+    width: '100%',
+    height: '100%',
+    objectFit: 'contain',
+    imageRendering: 'pixelated',
+    filter: colorFilter,
   };
 
   return (
@@ -463,18 +512,45 @@ export const AvatarEditorOverlay: React.FC<AvatarEditorOverlayProps> = ({
             <div style={styles.previewColumn}>
               <div style={styles.previewContainer}>
                 <div style={avatarStyle}>
-                  {/* Accessory */}
+                  {/* Accessory above character */}
                   {local.accessory !== 'none' && (
-                    <div style={styles.previewAccessory}>
+                    <div style={{
+                      ...styles.previewAccessory,
+                      top: local.accessory === 'halo' ? -5 : -18,
+                      filter: local.accessory === 'crown'
+                        ? 'drop-shadow(0 2px 4px rgba(255,215,0,0.5))'
+                        : local.accessory === 'halo'
+                        ? 'drop-shadow(0 0 8px rgba(255,255,200,0.8))'
+                        : 'none',
+                    }}>
                       {ACCESSORY_OPTIONS.find(a => a.id === local.accessory)?.emoji}
                     </div>
+                  )}
+
+                  {/* Actual sprite or fallback circle */}
+                  {previewSpriteUrl ? (
+                    <img
+                      src={previewSpriteUrl}
+                      alt="Avatar preview"
+                      style={spriteStyle}
+                      draggable={false}
+                    />
+                  ) : (
+                    <div style={{
+                      width: '100%',
+                      height: '100%',
+                      borderRadius: '50%',
+                      background: `radial-gradient(circle at 30% 30%, ${local.primaryColor}, ${local.secondaryColor})`,
+                      border: `3px solid ${local.outlineColor}`,
+                    }} />
                   )}
 
                   {/* Sparkle effect */}
                   {local.trailEffect === 'sparkle' && (
                     <>
-                      <span style={{ position: 'absolute', top: -8, right: -8, animation: 'sparkle 1s infinite' }}>✨</span>
-                      <span style={{ position: 'absolute', bottom: -5, left: -10, animation: 'sparkle 1s infinite 0.3s' }}>✨</span>
+                      <span style={{ position: 'absolute', top: -8, right: -8, animation: 'sparkle 1s infinite', fontSize: 14 }}>✨</span>
+                      <span style={{ position: 'absolute', bottom: -5, left: -10, animation: 'sparkle 1s infinite 0.3s', fontSize: 12 }}>✨</span>
+                      <span style={{ position: 'absolute', top: '40%', right: -12, animation: 'sparkle 1s infinite 0.6s', fontSize: 10 }}>✨</span>
                     </>
                   )}
                 </div>
