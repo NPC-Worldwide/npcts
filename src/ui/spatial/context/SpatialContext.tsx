@@ -184,12 +184,16 @@ export const DEFAULT_AVATAR_SETTINGS: AvatarSettings = {
 export interface UserSettings {
   defaultBrowser: string;
   browserArgs?: string;
-  defaultMediaPlayer: string;
+  mediaPlayers: string[];
+  messagesApps: string[];
+  emailApps: string[];
+  calendarApps: string[];
   theme?: 'dark' | 'light' | 'system';
   showKeyLegend?: boolean;
   showMinimap?: boolean;
   moveSpeed?: number;
   avatar?: AvatarSettings;
+  hasCompletedSetup?: boolean;
 }
 
 const SpatialContext = createContext<SpatialContextValue | undefined>(
@@ -267,10 +271,14 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
     return {
       defaultBrowser: 'firefox',
       browserArgs: '--start-fullscreen --app=',
-      defaultMediaPlayer: 'youtube-music',
+      mediaPlayers: [],
+      messagesApps: [],
+      emailApps: [],
+      calendarApps: [],
       showKeyLegend: true,
       showMinimap: false,
       avatar: DEFAULT_AVATAR_SETTINGS,
+      hasCompletedSetup: false,
     };
   });
 
@@ -866,7 +874,6 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
       // Substitute browser commands with user's default browser
       let processedCommand = command;
       const defaultBrowser = userSettings.defaultBrowser;
-      const defaultMediaPlayer = userSettings.defaultMediaPlayer;
 
       if (defaultBrowser) {
         // Check if command starts with a known browser
@@ -882,20 +889,6 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
         }
       }
 
-      // Substitute media player commands with user's default media player
-      if (defaultMediaPlayer) {
-        for (const player of MEDIA_PLAYER_COMMANDS) {
-          if (processedCommand.startsWith(player + ' ') || processedCommand === player) {
-            processedCommand = processedCommand.replace(
-              new RegExp(`^${player.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`),
-              defaultMediaPlayer + '$1'
-            );
-            console.log(`Substituted media player: ${player} -> ${defaultMediaPlayer}`);
-            break;
-          }
-        }
-      }
-
       try {
         return await commandClient.executeCommand(processedCommand);
       } catch (err) {
@@ -904,7 +897,7 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
         };
       }
     },
-    [commandClient, userSettings.defaultBrowser, userSettings.defaultMediaPlayer]
+    [commandClient, userSettings.defaultBrowser]
   );
 
   const getRunningApps = useCallback(async (): Promise<string[]> => {

@@ -91,6 +91,10 @@ export const Room: React.FC<RoomProps> = ({
         offsetX={viewport.wallWidthX}
         offsetY={viewport.wallWidthY}
         pattern="wood"
+        tile={room.floorTile}
+        tileSize={room.floorTileSize}
+        customPattern={room.floorPattern}
+        customPatternSize={room.floorPatternSize}
       />
 
       {/* Walls Layer */}

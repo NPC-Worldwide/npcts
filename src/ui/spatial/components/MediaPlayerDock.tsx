@@ -1,64 +1,65 @@
 /**
  * BottomDock Component
  *
- * Shows selected media player, messages, email, calendar from user settings.
+ * Shows user's selected services. If multiple selected per category, shows submenu.
+ * Uses persistent partition for webview to maintain login sessions.
  */
 
 import React, { useState, useRef } from 'react';
+import {
+  MEDIA_OPTIONS,
+  MESSAGES_OPTIONS,
+  EMAIL_OPTIONS,
+  CALENDAR_OPTIONS,
+} from './SettingsOverlay';
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export interface MediaPlayerDockProps {
-  mediaPlayer: string;
-  messages: string;
-  email: string;
-  calendar: string;
+  mediaPlayers: string[];
+  messagesApps: string[];
+  emailApps: string[];
+  calendarApps: string[];
   visible?: boolean;
 }
 
-interface DockItem {
+interface ServiceItem {
   id: string;
   icon: string;
   label: string;
   url: string;
 }
 
+type CategoryKey = 'media' | 'messages' | 'email' | 'calendar';
+
 // =============================================================================
-// Service lookups
+// Helpers
 // =============================================================================
 
-const MEDIA_MAP: Record<string, DockItem> = {
-  'youtube-music': { id: 'youtube-music', icon: '▶️', label: 'YouTube', url: 'https://music.youtube.com' },
-  'spotify': { id: 'spotify', icon: '🎵', label: 'Spotify', url: 'https://open.spotify.com' },
-  'soundcloud': { id: 'soundcloud', icon: '☁️', label: 'SoundCloud', url: 'https://soundcloud.com' },
-  'apple-music': { id: 'apple-music', icon: '🍎', label: 'Apple', url: 'https://music.apple.com' },
-  'tidal': { id: 'tidal', icon: '🌊', label: 'Tidal', url: 'https://listen.tidal.com' },
+const getServiceItems = (ids: string[], options: typeof MEDIA_OPTIONS): ServiceItem[] => {
+  return ids
+    .map(id => options.find(o => o.id === id))
+    .filter((o): o is ServiceItem => o !== undefined);
 };
 
-const MESSAGES_MAP: Record<string, DockItem> = {
-  'google-messages': { id: 'google-messages', icon: '💬', label: 'Messages', url: 'https://messages.google.com' },
-  'whatsapp': { id: 'whatsapp', icon: '📱', label: 'WhatsApp', url: 'https://web.whatsapp.com' },
-  'telegram': { id: 'telegram', icon: '✈️', label: 'Telegram', url: 'https://web.telegram.org' },
-  'discord': { id: 'discord', icon: '🎮', label: 'Discord', url: 'https://discord.com/app' },
-  'slack': { id: 'slack', icon: '💼', label: 'Slack', url: 'https://app.slack.com' },
-  'signal': { id: 'signal', icon: '🔒', label: 'Signal', url: 'https://signal.org' },
+const getCategoryIcon = (key: CategoryKey): string => {
+  switch (key) {
+    case 'media': return '🎵';
+    case 'messages': return '💬';
+    case 'email': return '📧';
+    case 'calendar': return '📅';
+  }
 };
 
-const EMAIL_MAP: Record<string, DockItem> = {
-  'gmail': { id: 'gmail', icon: '📧', label: 'Gmail', url: 'https://mail.google.com' },
-  'outlook': { id: 'outlook', icon: '📬', label: 'Outlook', url: 'https://outlook.live.com' },
-  'protonmail': { id: 'protonmail', icon: '🔐', label: 'Proton', url: 'https://mail.proton.me' },
-  'yahoo': { id: 'yahoo', icon: '📨', label: 'Yahoo', url: 'https://mail.yahoo.com' },
-  'fastmail': { id: 'fastmail', icon: '⚡', label: 'Fastmail', url: 'https://app.fastmail.com' },
-};
-
-const CALENDAR_MAP: Record<string, DockItem> = {
-  'google-calendar': { id: 'google-calendar', icon: '📅', label: 'Calendar', url: 'https://calendar.google.com' },
-  'outlook-calendar': { id: 'outlook-calendar', icon: '🗓️', label: 'Outlook', url: 'https://outlook.live.com/calendar' },
-  'notion': { id: 'notion', icon: '📓', label: 'Notion', url: 'https://notion.so' },
-  'todoist': { id: 'todoist', icon: '✅', label: 'Todoist', url: 'https://todoist.com' },
+const getCategoryLabel = (key: CategoryKey): string => {
+  switch (key) {
+    case 'media': return 'Music';
+    case 'messages': return 'Messages';
+    case 'email': return 'Email';
+    case 'calendar': return 'Calendar';
+  }
 };
 
 // Check if running in Electron
@@ -71,30 +72,44 @@ const isElectron = typeof window !== 'undefined' &&
 // =============================================================================
 
 export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
-  mediaPlayer = 'youtube-music',
-  messages = 'google-messages',
-  email = 'gmail',
-  calendar = 'google-calendar',
+  mediaPlayers = [],
+  messagesApps = [],
+  emailApps = [],
+  calendarApps = [],
   visible = true,
 }) => {
-  const [activePanel, setActivePanel] = useState<string | null>(null);
+  const [activeService, setActiveService] = useState<ServiceItem | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<CategoryKey | null>(null);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [panelSize, setPanelSize] = useState<'normal' | 'large'>('normal');
+  const [dockHidden, setDockHidden] = useState(false);
   const webviewRef = useRef<HTMLWebViewElement | null>(null);
 
   if (!visible) return null;
 
-  const items: DockItem[] = [
-    MEDIA_MAP[mediaPlayer] || MEDIA_MAP['youtube-music'],
-    MESSAGES_MAP[messages] || MESSAGES_MAP['google-messages'],
-    EMAIL_MAP[email] || EMAIL_MAP['gmail'],
-    CALENDAR_MAP[calendar] || CALENDAR_MAP['google-calendar'],
+  // Build category data
+  const allCategories: { key: CategoryKey; items: ServiceItem[] }[] = [
+    { key: 'media' as CategoryKey, items: getServiceItems(mediaPlayers, MEDIA_OPTIONS) },
+    { key: 'messages' as CategoryKey, items: getServiceItems(messagesApps, MESSAGES_OPTIONS) },
+    { key: 'email' as CategoryKey, items: getServiceItems(emailApps, EMAIL_OPTIONS) },
+    { key: 'calendar' as CategoryKey, items: getServiceItems(calendarApps, CALENDAR_OPTIONS) },
   ];
+  const categories = allCategories.filter(cat => cat.items.length > 0);
 
-  const activeItem = items.find(item => item.id === activePanel);
+  const handleCategoryClick = (key: CategoryKey, items: ServiceItem[]) => {
+    if (items.length === 1) {
+      // Single item - open directly
+      setActiveService(items[0]);
+      setExpandedCategory(null);
+    } else {
+      // Multiple items - toggle submenu
+      setExpandedCategory(expandedCategory === key ? null : key);
+    }
+  };
 
-  const togglePanel = (id: string) => {
-    setActivePanel(activePanel === id ? null : id);
+  const handleServiceSelect = (service: ServiceItem) => {
+    setActiveService(service);
+    setExpandedCategory(null);
   };
 
   const panelWidth = panelSize === 'large' ? 900 : 450;
@@ -103,7 +118,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
   return (
     <>
       {/* Embedded Panel */}
-      {activePanel && activeItem && (
+      {activeService && (
         <div style={{
           position: 'fixed',
           bottom: 52,
@@ -130,7 +145,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
             flexShrink: 0,
           }}>
             <span style={{ color: '#fff', fontSize: 12, fontWeight: 500 }}>
-              {activeItem.icon} {activeItem.label}
+              {activeService.icon} {activeService.label}
             </span>
             <div style={{ display: 'flex', gap: 4 }}>
               <button
@@ -141,7 +156,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
                 {panelSize === 'normal' ? '⤢' : '⤡'}
               </button>
               <button
-                onClick={() => setActivePanel(null)}
+                onClick={() => setActiveService(null)}
                 style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}
               >
                 ✕
@@ -149,12 +164,14 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
             </div>
           </div>
 
-          {/* Webview or iframe */}
+          {/* Webview with persistent partition for login sessions */}
           {isElectron ? (
             <webview
               ref={webviewRef as any}
-              src={activeItem.url}
+              src={activeService.url}
               style={{ flex: 1, width: '100%', border: 'none' }}
+              // @ts-ignore - partition persists cookies/login across sessions
+              partition="persist:bloomos"
               // @ts-ignore
               allowpopups="true"
               // @ts-ignore
@@ -162,59 +179,136 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
             />
           ) : (
             <iframe
-              src={activeItem.url}
+              src={activeService.url}
               style={{ flex: 1, width: '100%', border: 'none', backgroundColor: '#000' }}
               allow="autoplay; encrypted-media; fullscreen"
-              title={activeItem.label}
+              title={activeService.label}
             />
           )}
         </div>
       )}
 
+      {/* Submenu popup */}
+      {expandedCategory && (
+        <div style={{
+          position: 'fixed',
+          bottom: 52,
+          right: 8,
+          backgroundColor: '#2a2a2a',
+          border: '1px solid #5a4030',
+          borderRadius: 8,
+          padding: 8,
+          zIndex: 101,
+          minWidth: 150,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+        }}>
+          {categories.find(c => c.key === expandedCategory)?.items.map((service) => (
+            <div
+              key={service.id}
+              onClick={() => handleServiceSelect(service)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 12px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                backgroundColor: hoveredItem === service.id ? 'rgba(255,255,255,0.1)' : 'transparent',
+                transition: 'background 0.15s',
+              }}
+              onMouseEnter={() => setHoveredItem(service.id)}
+              onMouseLeave={() => setHoveredItem(null)}
+            >
+              <span style={{ fontSize: 16 }}>{service.icon}</span>
+              <span style={{ color: '#fff', fontSize: 13 }}>{service.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Toggle button - always visible */}
+      <button
+        onClick={() => setDockHidden(!dockHidden)}
+        style={{
+          position: 'fixed',
+          bottom: dockHidden ? 4 : 28,
+          right: 4,
+          width: 18,
+          height: 18,
+          borderRadius: '50%',
+          background: 'rgba(50,35,25,0.95)',
+          border: '1px solid #6a5040',
+          color: '#aaa',
+          fontSize: 8,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 101,
+          transition: 'bottom 0.2s ease',
+        }}
+        title={dockHidden ? 'Show dock' : 'Hide dock'}
+      >
+        {dockHidden ? '▲' : '▼'}
+      </button>
+
       {/* Dock Bar */}
       <div style={{
         position: 'fixed',
-        bottom: 0,
+        bottom: dockHidden ? -40 : 0,
         right: 0,
         display: 'flex',
-        alignItems: 'flex-end',
-        gap: 4,
-        padding: '6px 12px 4px 12px',
-        background: 'linear-gradient(to top, rgba(50,35,25,0.98) 0%, rgba(70,50,35,0.95) 100%)',
-        borderTop: '2px solid #6a5040',
-        borderLeft: '2px solid #6a5040',
-        borderTopLeftRadius: 8,
-        zIndex: 100,
+        alignItems: 'center',
+        gap: 2,
+        padding: '4px 8px',
+        background: 'linear-gradient(to top, rgba(50,35,25,0.95) 0%, rgba(70,50,35,0.9) 100%)',
+        borderTop: '1px solid #6a5040',
+        borderLeft: '1px solid #6a5040',
+        borderTopLeftRadius: 6,
+        zIndex: 90,
+        transition: 'bottom 0.2s ease',
       }}>
-        {items.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => togglePanel(item.id)}
-            onMouseEnter={() => setHoveredItem(item.id)}
-            onMouseLeave={() => setHoveredItem(null)}
-            title={item.label}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              padding: '4px 8px',
-              background: activePanel === item.id
-                ? 'rgba(255,255,255,0.2)'
-                : hoveredItem === item.id
-                  ? 'rgba(255,255,255,0.1)'
-                  : 'transparent',
-              border: activePanel === item.id ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent',
-              borderRadius: 4,
-              cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-          >
-            <span style={{ fontSize: 18 }}>{item.icon}</span>
-            <span style={{ fontSize: 8, color: activePanel === item.id ? '#fff' : '#aaa', marginTop: 1 }}>
-              {item.label}
-            </span>
-          </button>
-        ))}
+        {categories.map(({ key, items }) => {
+          const isActive = activeService && items.some(i => i.id === activeService.id);
+          const isExpanded = expandedCategory === key;
+          // Show first item's icon if single, category icon if multiple
+          const displayIcon = items.length === 1 ? items[0].icon : getCategoryIcon(key);
+          const displayLabel = items.length === 1 ? items[0].label : getCategoryLabel(key);
+
+          return (
+            <button
+              key={key}
+              onClick={() => handleCategoryClick(key, items)}
+              onMouseEnter={() => setHoveredItem(key)}
+              onMouseLeave={() => setHoveredItem(null)}
+              title={displayLabel}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '3px 6px',
+                background: isActive || isExpanded
+                  ? 'rgba(255,255,255,0.2)'
+                  : hoveredItem === key
+                    ? 'rgba(255,255,255,0.1)'
+                    : 'transparent',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{displayIcon}</span>
+            </button>
+          );
+        })}
+
+        {/* Show message if no apps configured */}
+        {categories.length === 0 && (
+          <span style={{ color: '#888', fontSize: 11, padding: '8px 12px' }}>
+            Open Settings to add apps
+          </span>
+        )}
       </div>
     </>
   );

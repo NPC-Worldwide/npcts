@@ -119,6 +119,10 @@ export interface RoomConfig {
   doors: Record<string, DoorConfig>;
   applications: Record<string, ApplicationConfig>;
   floor_image?: string;
+  floor_tile?: boolean;        // Whether to tile the floor image
+  floor_tile_size?: number;    // Tile size in pixels (default 100)
+  floor_pattern?: string;      // CSS pattern (alternative to image)
+  floor_pattern_size?: string; // CSS background-size for pattern
 }
 
 export interface Room {
@@ -126,6 +130,10 @@ export interface Room {
   doors: Record<string, Door>;
   applications: Record<string, Application>;
   floorImage?: string;
+  floorTile?: boolean;
+  floorTileSize?: number;
+  floorPattern?: string;
+  floorPatternSize?: string;
 }
 
 // =============================================================================

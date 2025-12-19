@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { FloorTilePicker, type FloorTileOption } from './FloorTilePicker';
 
 // =============================================================================
 // Types
@@ -13,6 +14,10 @@ import React, { useState, useEffect, useRef } from 'react';
 export interface RoomData {
   name: string;
   backgroundImage?: string;
+  floorTile?: boolean;
+  floorTileSize?: number;
+  floorPattern?: string;
+  floorPatternSize?: string;
 }
 
 export interface EditRoomOverlayProps {
@@ -20,7 +25,19 @@ export interface EditRoomOverlayProps {
   onClose: () => void;
   roomName: string;
   backgroundImage?: string;
-  onSave: (oldName: string, newName: string, backgroundImage?: string) => void;
+  floorTile?: boolean;
+  floorTileSize?: number;
+  floorPattern?: string;
+  floorPatternSize?: string;
+  onSave: (
+    oldName: string,
+    newName: string,
+    backgroundImage?: string,
+    floorTile?: boolean,
+    floorTileSize?: number,
+    floorPattern?: string,
+    floorPatternSize?: string
+  ) => void;
   onDelete?: (roomName: string) => void;
   onUploadImage?: (file: File) => Promise<string>;
   canDelete?: boolean;
@@ -236,6 +253,10 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
   onClose,
   roomName,
   backgroundImage,
+  floorTile = false,
+  floorTileSize = 100,
+  floorPattern,
+  floorPatternSize,
   onSave,
   onDelete,
   onUploadImage,
@@ -243,13 +264,22 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
 }) => {
   const [newName, setNewName] = useState(roomName);
   const [newBackgroundImage, setNewBackgroundImage] = useState(backgroundImage || '');
+  const [newFloorTile, setNewFloorTile] = useState(floorTile);
+  const [newFloorTileSize, setNewFloorTileSize] = useState(floorTileSize);
+  const [newFloorPattern, setNewFloorPattern] = useState(floorPattern || '');
+  const [newFloorPatternSize, setNewFloorPatternSize] = useState(floorPatternSize || '');
   const [isUploading, setIsUploading] = useState(false);
+  const [showCustomUpload, setShowCustomUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setNewName(roomName);
     setNewBackgroundImage(backgroundImage || '');
-  }, [roomName, backgroundImage, visible]);
+    setNewFloorTile(floorTile);
+    setNewFloorTileSize(floorTileSize);
+    setNewFloorPattern(floorPattern || '');
+    setNewFloorPatternSize(floorPatternSize || '');
+  }, [roomName, backgroundImage, floorTile, floorTileSize, floorPattern, floorPatternSize, visible]);
 
   if (!visible) return null;
 
@@ -273,8 +303,38 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
       alert('Room name is required');
       return;
     }
-    onSave(roomName, newName.trim(), newBackgroundImage || undefined);
+    onSave(
+      roomName,
+      newName.trim(),
+      newBackgroundImage || undefined,
+      newFloorTile,
+      newFloorTileSize,
+      newFloorPattern || undefined,
+      newFloorPatternSize || undefined
+    );
     onClose();
+  };
+
+  const handleTileSelect = (tile: FloorTileOption) => {
+    if (tile.type === 'pattern') {
+      // It's a procedural pattern
+      setNewBackgroundImage('');
+      setNewFloorPattern(tile.pattern || '');
+      setNewFloorPatternSize(tile.patternSize || '');
+      setNewFloorTile(false);
+    } else {
+      // It's an image tile
+      setNewBackgroundImage(tile.url || '');
+      setNewFloorPattern('');
+      setNewFloorPatternSize('');
+      setNewFloorTile(true); // Auto-enable tiling for built-in tiles
+      setNewFloorTileSize(100);
+    }
+  };
+
+  const handleCustomUpload = () => {
+    setShowCustomUpload(true);
+    fileInputRef.current?.click();
   };
 
   const handleDelete = () => {
@@ -346,58 +406,97 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
               />
             </div>
 
-            {/* Background Image */}
+            {/* Floor Style */}
             <div style={styles.section}>
-              <div style={styles.sectionTitle}>Background Image</div>
-              <div style={styles.imagePreview}>
+              <div style={styles.sectionTitle}>Floor Style</div>
+
+              {/* Preview */}
+              <div style={{
+                ...styles.imagePreview,
+                marginBottom: 16,
+              }}>
                 {newBackgroundImage ? (
-                  <img
-                    src={newBackgroundImage}
-                    alt="Room background"
-                    style={styles.imagePreviewImg}
-                  />
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    backgroundImage: `url(${newBackgroundImage})`,
+                    backgroundSize: newFloorTile ? `${newFloorTileSize}px ${newFloorTileSize}px` : 'cover',
+                    backgroundRepeat: newFloorTile ? 'repeat' : 'no-repeat',
+                    backgroundPosition: 'center',
+                  }} />
+                ) : newFloorPattern ? (
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    background: newFloorPattern,
+                    backgroundSize: newFloorPatternSize,
+                  }} />
                 ) : (
-                  <span style={styles.imagePreviewPlaceholder}>No background image</span>
+                  <span style={styles.imagePreviewPlaceholder}>Select a floor style below</span>
                 )}
               </div>
-              <div style={styles.fileInputContainer}>
-                <label
-                  style={styles.fileInputLabel}
+
+              {/* Floor Tile Picker */}
+              <FloorTilePicker
+                value={newFloorPattern || newBackgroundImage}
+                isPattern={!!newFloorPattern}
+                onSelect={handleTileSelect}
+                onUploadCustom={onUploadImage ? handleCustomUpload : undefined}
+              />
+
+              {/* Hidden file input for custom uploads */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                style={{ display: 'none' }}
+                disabled={isUploading}
+              />
+
+              {/* Tile size slider - only for image tiles */}
+              {newBackgroundImage && newFloorTile && (
+                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Tile size:</span>
+                  <input
+                    type="range"
+                    min="50"
+                    max="300"
+                    step="10"
+                    value={newFloorTileSize}
+                    onChange={(e) => setNewFloorTileSize(Number(e.target.value))}
+                    style={{ flex: 1, cursor: 'pointer' }}
+                  />
+                  <span style={{ color: '#e5e7eb', fontSize: 13, minWidth: 50 }}>
+                    {newFloorTileSize}px
+                  </span>
+                </div>
+              )}
+
+              {/* Clear button */}
+              {(newBackgroundImage || newFloorPattern) && (
+                <button
+                  onClick={() => {
+                    setNewBackgroundImage('');
+                    setNewFloorPattern('');
+                    setNewFloorPatternSize('');
+                    setNewFloorTile(false);
+                  }}
+                  style={{
+                    ...styles.fileInputLabel,
+                    marginTop: 12,
+                    display: 'inline-flex',
+                  }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+                    e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
                   }}
                 >
-                  {isUploading ? '⏳ Uploading...' : '📁 Choose Image'}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    style={styles.fileInput}
-                    disabled={isUploading}
-                  />
-                </label>
-                {newBackgroundImage && (
-                  <button
-                    onClick={() => setNewBackgroundImage('')}
-                    style={{
-                      ...styles.fileInputLabel,
-                      marginLeft: 8,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                    }}
-                  >
-                    🗑️ Remove
-                  </button>
-                )}
-              </div>
+                  Clear Floor Style
+                </button>
+              )}
             </div>
 
             {/* Danger Zone */}

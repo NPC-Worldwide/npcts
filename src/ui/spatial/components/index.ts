@@ -83,3 +83,15 @@ export {
   MediaPlayerDock,
   type MediaPlayerDockProps,
 } from './MediaPlayerDock';
+export {
+  FloorTilePicker,
+  BUILT_IN_TILES,
+  PATTERN_TEMPLATES,
+  type FloorTileOption,
+  type FloorTilePickerProps,
+} from './FloorTilePicker';
+export {
+  UsageTracker,
+  type UsageTrackerProps,
+  type UsageData,
+} from './UsageTracker';

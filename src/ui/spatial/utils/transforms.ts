@@ -268,6 +268,10 @@ export function roomConfigToPixels(
     doors,
     applications,
     floorImage: config.floor_image,
+    floorTile: config.floor_tile,
+    floorTileSize: config.floor_tile_size,
+    floorPattern: config.floor_pattern,
+    floorPatternSize: config.floor_pattern_size,
   };
 }
 

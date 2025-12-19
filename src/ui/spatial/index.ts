@@ -94,6 +94,12 @@ export {
   WorldMapOverlay,
   // Media Player
   MediaPlayerDock,
+  // Floor Tiles
+  FloorTilePicker,
+  BUILT_IN_TILES,
+  PATTERN_TEMPLATES,
+  // Usage Tracker
+  UsageTracker,
 } from './components';
 
 // Editors
@@ -184,3 +190,9 @@ export type {
 
 // Re-export floor pattern type
 export type { FloorPatternType } from './components';
+
+// Re-export usage tracker types
+export type { UsageData, UsageTrackerProps } from './components';
+
+// Re-export floor tile picker types
+export type { FloorTileOption, FloorTilePickerProps } from './components';

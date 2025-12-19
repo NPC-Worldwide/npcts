@@ -2,6 +2,7 @@
  * SettingsOverlay Component
  *
  * Settings for browser, media player, messages, email, calendar preferences.
+ * Users can select MULTIPLE services per category.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -13,14 +14,15 @@ import React, { useState, useEffect } from 'react';
 export interface UserSettings {
   defaultBrowser: string;
   browserArgs?: string;
-  defaultMediaPlayer: string;
-  defaultMessages: string;
-  defaultEmail: string;
-  defaultCalendar: string;
+  mediaPlayers: string[];  // Multiple selections
+  messagesApps: string[];
+  emailApps: string[];
+  calendarApps: string[];
   theme?: 'dark' | 'light' | 'system';
   showKeyLegend?: boolean;
   showMinimap?: boolean;
   moveSpeed?: number;
+  hasCompletedSetup?: boolean;  // Track if user has done initial setup
 }
 
 export interface SettingsOverlayProps {
@@ -28,6 +30,7 @@ export interface SettingsOverlayProps {
   onClose: () => void;
   settings: UserSettings;
   onSave: (settings: UserSettings) => void;
+  isFirstRun?: boolean;
 }
 
 // =============================================================================
@@ -39,39 +42,48 @@ const BROWSER_OPTIONS = [
   { id: 'chrome', label: 'Chrome', command: 'google-chrome' },
   { id: 'brave', label: 'Brave', command: 'brave-browser' },
   { id: 'edge', label: 'Edge', command: 'microsoft-edge' },
-  { id: 'custom', label: 'Custom', command: '' },
+  { id: 'vivaldi', label: 'Vivaldi', command: 'vivaldi' },
+  { id: 'opera', label: 'Opera', command: 'opera' },
+  { id: 'librewolf', label: 'LibreWolf', command: 'librewolf' },
+  { id: 'waterfox', label: 'Waterfox', command: 'waterfox' },
+  { id: 'floorp', label: 'Floorp', command: 'floorp' },
+  { id: 'zen', label: 'Zen Browser', command: 'zen-browser' },
 ];
 
-const MEDIA_OPTIONS = [
+export const MEDIA_OPTIONS = [
   { id: 'youtube-music', label: 'YouTube Music', url: 'https://music.youtube.com', icon: '▶️' },
   { id: 'spotify', label: 'Spotify', url: 'https://open.spotify.com', icon: '🎵' },
   { id: 'soundcloud', label: 'SoundCloud', url: 'https://soundcloud.com', icon: '☁️' },
   { id: 'apple-music', label: 'Apple Music', url: 'https://music.apple.com', icon: '🍎' },
   { id: 'tidal', label: 'Tidal', url: 'https://listen.tidal.com', icon: '🌊' },
+  { id: 'pandora', label: 'Pandora', url: 'https://www.pandora.com', icon: '🎧' },
 ];
 
-const MESSAGES_OPTIONS = [
+export const MESSAGES_OPTIONS = [
   { id: 'google-messages', label: 'Google Messages', url: 'https://messages.google.com', icon: '💬' },
   { id: 'whatsapp', label: 'WhatsApp', url: 'https://web.whatsapp.com', icon: '📱' },
   { id: 'telegram', label: 'Telegram', url: 'https://web.telegram.org', icon: '✈️' },
   { id: 'discord', label: 'Discord', url: 'https://discord.com/app', icon: '🎮' },
   { id: 'slack', label: 'Slack', url: 'https://app.slack.com', icon: '💼' },
   { id: 'signal', label: 'Signal', url: 'https://signal.org', icon: '🔒' },
+  { id: 'messenger', label: 'Messenger', url: 'https://www.messenger.com', icon: '💙' },
 ];
 
-const EMAIL_OPTIONS = [
+export const EMAIL_OPTIONS = [
   { id: 'gmail', label: 'Gmail', url: 'https://mail.google.com', icon: '📧' },
   { id: 'outlook', label: 'Outlook', url: 'https://outlook.live.com', icon: '📬' },
   { id: 'protonmail', label: 'ProtonMail', url: 'https://mail.proton.me', icon: '🔐' },
   { id: 'yahoo', label: 'Yahoo Mail', url: 'https://mail.yahoo.com', icon: '📨' },
   { id: 'fastmail', label: 'Fastmail', url: 'https://app.fastmail.com', icon: '⚡' },
+  { id: 'icloud', label: 'iCloud Mail', url: 'https://www.icloud.com/mail', icon: '☁️' },
 ];
 
-const CALENDAR_OPTIONS = [
+export const CALENDAR_OPTIONS = [
   { id: 'google-calendar', label: 'Google Calendar', url: 'https://calendar.google.com', icon: '📅' },
-  { id: 'outlook-calendar', label: 'Outlook', url: 'https://outlook.live.com/calendar', icon: '🗓️' },
+  { id: 'outlook-calendar', label: 'Outlook Calendar', url: 'https://outlook.live.com/calendar', icon: '🗓️' },
   { id: 'notion', label: 'Notion', url: 'https://notion.so', icon: '📓' },
   { id: 'todoist', label: 'Todoist', url: 'https://todoist.com', icon: '✅' },
+  { id: 'fantastical', label: 'Fantastical', url: 'https://flexibits.com/fantastical', icon: '✨' },
 ];
 
 // =============================================================================
@@ -82,7 +94,7 @@ const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed',
     inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     backdropFilter: 'blur(8px)',
     display: 'flex',
     alignItems: 'center',
@@ -92,9 +104,9 @@ const styles: Record<string, React.CSSProperties> = {
   container: {
     backgroundColor: '#1e1e2e',
     borderRadius: 16,
-    maxWidth: 560,
+    maxWidth: 600,
     width: '90%',
-    maxHeight: '85vh',
+    maxHeight: '90vh',
     overflow: 'hidden',
     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
     display: 'flex',
@@ -112,6 +124,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     fontSize: 18,
     fontWeight: 600,
+  },
+  subtitle: {
+    color: '#888',
+    fontSize: 13,
+    marginTop: 4,
   },
   closeBtn: {
     background: 'none',
@@ -136,6 +153,12 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: 1,
     marginBottom: 10,
   },
+  hint: {
+    color: '#666',
+    fontSize: 11,
+    marginBottom: 10,
+    fontStyle: 'italic' as const,
+  },
   optionGrid: {
     display: 'flex',
     flexWrap: 'wrap' as const,
@@ -147,7 +170,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 6,
     padding: '8px 12px',
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    border: '2px solid rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
     cursor: 'pointer',
     transition: 'all 0.15s',
@@ -156,7 +179,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   optionSelected: {
     backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    borderColor: 'rgba(99, 102, 241, 0.5)',
+    borderColor: 'rgba(99, 102, 241, 0.6)',
     color: '#fff',
   },
   footer: {
@@ -193,6 +216,7 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
   onClose,
   settings,
   onSave,
+  isFirstRun = false,
 }) => {
   const [local, setLocal] = useState<UserSettings>(settings);
 
@@ -203,111 +227,161 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
   if (!visible) return null;
 
   const handleSave = () => {
-    onSave(local);
+    onSave({ ...local, hasCompletedSetup: true });
     onClose();
   };
 
-  const renderOptions = (
+  const toggleMultiSelect = (
+    key: 'mediaPlayers' | 'messagesApps' | 'emailApps' | 'calendarApps',
+    id: string
+  ) => {
+    setLocal(prev => {
+      const current = prev[key] || [];
+      const updated = current.includes(id)
+        ? current.filter(x => x !== id)
+        : [...current, id];
+      return { ...prev, [key]: updated };
+    });
+  };
+
+  const renderMultiSelect = (
     options: { id: string; label: string; icon?: string }[],
-    selected: string,
-    onChange: (id: string) => void,
+    selected: string[],
+    key: 'mediaPlayers' | 'messagesApps' | 'emailApps' | 'calendarApps',
     color = '#6366f1'
   ) => (
     <div style={styles.optionGrid}>
-      {options.map((opt) => (
-        <div
-          key={opt.id}
-          onClick={() => onChange(opt.id)}
-          style={{
-            ...styles.option,
-            ...(selected === opt.id ? {
-              ...styles.optionSelected,
-              borderColor: color,
-              backgroundColor: `${color}20`,
-            } : {}),
-          }}
-        >
-          {opt.icon && <span>{opt.icon}</span>}
-          <span>{opt.label}</span>
-        </div>
-      ))}
+      {options.map((opt) => {
+        const isSelected = selected.includes(opt.id);
+        return (
+          <div
+            key={opt.id}
+            onClick={() => toggleMultiSelect(key, opt.id)}
+            style={{
+              ...styles.option,
+              ...(isSelected ? {
+                ...styles.optionSelected,
+                borderColor: color,
+                backgroundColor: `${color}20`,
+              } : {}),
+            }}
+          >
+            {opt.icon && <span>{opt.icon}</span>}
+            <span>{opt.label}</span>
+            {isSelected && <span style={{ marginLeft: 4 }}>✓</span>}
+          </div>
+        );
+      })}
     </div>
   );
 
+  const canSave = (local.mediaPlayers?.length || 0) > 0 ||
+    (local.messagesApps?.length || 0) > 0 ||
+    (local.emailApps?.length || 0) > 0 ||
+    (local.calendarApps?.length || 0) > 0;
+
   return (
-    <div style={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div style={styles.overlay} onClick={(e) => !isFirstRun && e.target === e.currentTarget && onClose()}>
       <div style={styles.container}>
         <div style={styles.header}>
-          <h2 style={styles.title}>⚙️ Settings</h2>
-          <button style={styles.closeBtn} onClick={onClose}>✕</button>
+          <div>
+            <h2 style={styles.title}>
+              {isFirstRun ? '👋 Welcome! Set up your apps' : '⚙️ Settings'}
+            </h2>
+            {isFirstRun && (
+              <p style={styles.subtitle}>Select the apps you want quick access to</p>
+            )}
+          </div>
+          {!isFirstRun && (
+            <button style={styles.closeBtn} onClick={onClose}>✕</button>
+          )}
         </div>
 
         <div style={styles.body}>
           {/* Browser */}
           <div style={styles.section}>
-            <div style={styles.sectionTitle}>🌐 Browser</div>
-            {renderOptions(
-              BROWSER_OPTIONS,
-              BROWSER_OPTIONS.find(b => b.command === local.defaultBrowser)?.id || 'firefox',
-              (id) => {
-                const opt = BROWSER_OPTIONS.find(b => b.id === id);
-                if (opt) setLocal(prev => ({ ...prev, defaultBrowser: opt.command }));
-              },
-              '#3b82f6'
-            )}
+            <div style={styles.sectionTitle}>🌐 Default Browser</div>
+            <div style={styles.optionGrid}>
+              {BROWSER_OPTIONS.map((opt) => (
+                <div
+                  key={opt.id}
+                  onClick={() => setLocal(prev => ({ ...prev, defaultBrowser: opt.command }))}
+                  style={{
+                    ...styles.option,
+                    ...(local.defaultBrowser === opt.command ? styles.optionSelected : {}),
+                  }}
+                >
+                  <span>{opt.label}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Media Player */}
+          {/* Media Player - Multi-select */}
           <div style={styles.section}>
-            <div style={styles.sectionTitle}>🎵 Media Player</div>
-            {renderOptions(
+            <div style={styles.sectionTitle}>🎵 Music & Media</div>
+            <div style={styles.hint}>Select all the services you use</div>
+            {renderMultiSelect(
               MEDIA_OPTIONS,
-              local.defaultMediaPlayer,
-              (id) => setLocal(prev => ({ ...prev, defaultMediaPlayer: id })),
+              local.mediaPlayers || [],
+              'mediaPlayers',
               '#ec4899'
             )}
           </div>
 
-          {/* Messages */}
+          {/* Messages - Multi-select */}
           <div style={styles.section}>
             <div style={styles.sectionTitle}>💬 Messages</div>
-            {renderOptions(
+            <div style={styles.hint}>Select all the messaging apps you use</div>
+            {renderMultiSelect(
               MESSAGES_OPTIONS,
-              local.defaultMessages,
-              (id) => setLocal(prev => ({ ...prev, defaultMessages: id })),
+              local.messagesApps || [],
+              'messagesApps',
               '#22c55e'
             )}
           </div>
 
-          {/* Email */}
+          {/* Email - Multi-select */}
           <div style={styles.section}>
             <div style={styles.sectionTitle}>📧 Email</div>
-            {renderOptions(
+            <div style={styles.hint}>Select all your email accounts</div>
+            {renderMultiSelect(
               EMAIL_OPTIONS,
-              local.defaultEmail,
-              (id) => setLocal(prev => ({ ...prev, defaultEmail: id })),
+              local.emailApps || [],
+              'emailApps',
               '#f59e0b'
             )}
           </div>
 
-          {/* Calendar */}
+          {/* Calendar - Multi-select */}
           <div style={styles.section}>
-            <div style={styles.sectionTitle}>📅 Calendar</div>
-            {renderOptions(
+            <div style={styles.sectionTitle}>📅 Calendar & Tasks</div>
+            <div style={styles.hint}>Select your calendar and task apps</div>
+            {renderMultiSelect(
               CALENDAR_OPTIONS,
-              local.defaultCalendar,
-              (id) => setLocal(prev => ({ ...prev, defaultCalendar: id })),
+              local.calendarApps || [],
+              'calendarApps',
               '#8b5cf6'
             )}
           </div>
         </div>
 
         <div style={styles.footer}>
-          <button style={{ ...styles.btn, ...styles.btnSecondary }} onClick={onClose}>
-            Cancel
-          </button>
-          <button style={{ ...styles.btn, ...styles.btnPrimary }} onClick={handleSave}>
-            Save
+          {!isFirstRun && (
+            <button style={{ ...styles.btn, ...styles.btnSecondary }} onClick={onClose}>
+              Cancel
+            </button>
+          )}
+          <button
+            style={{
+              ...styles.btn,
+              ...styles.btnPrimary,
+              opacity: canSave ? 1 : 0.5,
+            }}
+            onClick={handleSave}
+            disabled={!canSave && isFirstRun}
+          >
+            {isFirstRun ? 'Get Started' : 'Save'}
           </button>
         </div>
       </div>

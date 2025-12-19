@@ -14,6 +14,8 @@ interface KeyLegendProps {
   position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   collapsed?: boolean;
   className?: string;
+  /** Offset from right edge when position is bottom-right (to sit left of dock) */
+  rightOffset?: number;
 }
 
 // =============================================================================
@@ -41,15 +43,17 @@ export const KeyLegend: React.FC<KeyLegendProps> = ({
   position = 'bottom-right',
   collapsed: initialCollapsed = false,
   className = '',
+  /** Offset from right edge to sit left of dock */
+  rightOffset = 200,
 }) => {
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [isHovered, setIsHovered] = useState(false);
 
   const positionStyle: React.CSSProperties = {
     position: 'absolute',
-    zIndex: 100,
-    ...(position.includes('top') ? { top: 20 } : { bottom: 20 }),
-    ...(position.includes('left') ? { left: 20 } : { right: 20 }),
+    zIndex: 50,
+    ...(position.includes('top') ? { top: 20 } : { bottom: 4 }),
+    ...(position.includes('left') ? { left: 8 } : { right: rightOffset }),
   };
 
   if (collapsed) {

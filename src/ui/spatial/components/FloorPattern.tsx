@@ -111,8 +111,12 @@ const FLOOR_PATTERN_SIZES: Record<FloorPatternType, string> = {
 interface FloorPatternProps {
   /** Image URL for custom floor texture */
   imageUrl?: string;
-  /** Built-in pattern type (used if no imageUrl) */
+  /** Built-in pattern type (used if no imageUrl or customPattern) */
   pattern?: FloorPatternType;
+  /** Custom CSS pattern (takes precedence over imageUrl) */
+  customPattern?: string;
+  /** Custom pattern size (CSS background-size value) */
+  customPatternSize?: string;
   /** Width of the floor area */
   width: number;
   /** Height of the floor area */
@@ -121,6 +125,10 @@ interface FloorPatternProps {
   offsetX?: number;
   /** Y offset (for walls) */
   offsetY?: number;
+  /** Whether to tile the image instead of cover */
+  tile?: boolean;
+  /** Tile size in pixels (when tile is true) */
+  tileSize?: number;
   /** Additional class name */
   className?: string;
   /** Additional styles */
@@ -134,10 +142,14 @@ interface FloorPatternProps {
 export const FloorPattern: React.FC<FloorPatternProps> = ({
   imageUrl,
   pattern = 'wood',
+  customPattern,
+  customPatternSize,
   width,
   height,
   offsetX = 0,
   offsetY = 0,
+  tile = false,
+  tileSize = 100,
   className = '',
   style: customStyle,
 }) => {
@@ -174,18 +186,27 @@ export const FloorPattern: React.FC<FloorPatternProps> = ({
       ...customStyle,
     };
 
+    // Use custom CSS pattern if provided (highest priority)
+    if (customPattern) {
+      return {
+        ...baseStyle,
+        background: customPattern,
+        backgroundSize: customPatternSize || 'auto',
+      };
+    }
+
     // Use image if provided and loaded
     if (imageUrl && imageLoaded && !imageError) {
       return {
         ...baseStyle,
         backgroundImage: `url(${imageUrl})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'repeat',
+        backgroundSize: tile ? `${tileSize}px ${tileSize}px` : 'cover',
+        backgroundPosition: tile ? '0 0' : 'center',
+        backgroundRepeat: tile ? 'repeat' : 'no-repeat',
       };
     }
 
-    // Use procedural pattern
+    // Use built-in procedural pattern as fallback
     const patternCss = FLOOR_PATTERNS[pattern];
     const patternSize = FLOOR_PATTERN_SIZES[pattern];
 
@@ -199,10 +220,14 @@ export const FloorPattern: React.FC<FloorPatternProps> = ({
     imageLoaded,
     imageError,
     pattern,
+    customPattern,
+    customPatternSize,
     width,
     height,
     offsetX,
     offsetY,
+    tile,
+    tileSize,
     customStyle,
   ]);
 
