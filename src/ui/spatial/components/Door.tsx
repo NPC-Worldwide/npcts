@@ -5,7 +5,7 @@
  * Supports different orientations (up, down, left, right).
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import type { Door as DoorType, DoorDirection } from '../../../core/spatial';
 
 // =============================================================================
@@ -30,9 +30,12 @@ interface DoorProps {
   style?: React.CSSProperties;
   onClick?: (door: DoorType, name?: string) => void;
   onHover?: (door: DoorType | null, name?: string) => void;
+  onDragStart?: (door: DoorType, name?: string) => void;
+  onDragEnd?: (door: DoorType, name: string, x: number, y: number) => void;
   selected?: boolean;
   highlighted?: boolean;
   showLabel?: boolean;
+  draggable?: boolean;
 }
 
 // =============================================================================
@@ -46,10 +49,57 @@ export const Door: React.FC<DoorProps> = ({
   style: customStyle,
   onClick,
   onHover,
+  onDragStart,
+  onDragEnd,
   selected = false,
   highlighted = false,
   showLabel = false,
+  draggable = false,
 }) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!draggable) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = (e.currentTarget.parentElement as HTMLElement)?.getBoundingClientRect();
+    if (!rect) return;
+
+    setIsDragging(true);
+    setDragOffset({
+      x: e.clientX - (rect.left + door.x),
+      y: e.clientY - (rect.top + door.y),
+    });
+    onDragStart?.(door, name);
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const newX = moveEvent.clientX - rect.left - dragOffset.x;
+      const newY = moveEvent.clientY - rect.top - dragOffset.y;
+
+      // Update position visually during drag
+      const target = e.currentTarget as HTMLElement;
+      if (target) {
+        target.style.left = `${newX}px`;
+        target.style.top = `${newY}px`;
+      }
+    };
+
+    const handleMouseUp = (upEvent: MouseEvent) => {
+      setIsDragging(false);
+      const newX = upEvent.clientX - rect.left - dragOffset.x;
+      const newY = upEvent.clientY - rect.top - dragOffset.y;
+      onDragEnd?.(door, name || '', newX, newY);
+
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [draggable, door, name, onDragStart, onDragEnd, dragOffset]);
+
   const doorStyle = useMemo(() => {
     const isVertical =
       door.orientation === 'left' || door.orientation === 'right';
@@ -64,11 +114,12 @@ export const Door: React.FC<DoorProps> = ({
       border: `3px solid ${DOOR_COLORS.frame}`,
       borderRadius: isVertical ? '0 4px 4px 0' : '4px 4px 0 0',
       boxShadow: `inset 0 0 10px ${DOOR_COLORS.shadow}`,
-      zIndex: 15,
-      cursor: 'pointer',
-      transition: 'transform 0.2s, box-shadow 0.2s',
+      zIndex: isDragging ? 1000 : 15,
+      cursor: draggable ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
+      transition: isDragging ? 'none' : 'transform 0.2s, box-shadow 0.2s',
       outline: selected ? '2px solid #3b82f6' : 'none',
       outlineOffset: '2px',
+      userSelect: 'none',
       ...customStyle,
     };
 
@@ -78,7 +129,7 @@ export const Door: React.FC<DoorProps> = ({
     }
 
     return baseStyle;
-  }, [door, customStyle, selected, highlighted]);
+  }, [door, customStyle, selected, highlighted, isDragging, draggable]);
 
   const handleStyle = useMemo((): React.CSSProperties => {
     const isVertical =
@@ -124,6 +175,7 @@ export const Door: React.FC<DoorProps> = ({
       className={`spatial-door ${className}`}
       style={doorStyle}
       onClick={handleClick}
+      onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       role="button"

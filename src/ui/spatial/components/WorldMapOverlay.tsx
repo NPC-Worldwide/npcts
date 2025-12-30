@@ -5,7 +5,7 @@
  * Allows clicking on a room to navigate there.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import type { SpatialWorldConfig } from '../../../core/spatial';
 
 // =============================================================================
@@ -270,6 +270,19 @@ export const WorldMapOverlay: React.FC<WorldMapOverlayProps> = ({
   onNavigate,
 }) => {
   const [hoveredRoom, setHoveredRoom] = useState<string | null>(null);
+
+  // ESC to close
+  useEffect(() => {
+    if (!visible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [visible, onClose]);
 
   // Calculate room positions and connections
   const { nodes, connections, stats } = useMemo(() => {

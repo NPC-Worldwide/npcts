@@ -40,7 +40,7 @@ const KEY_ITEMS: KeyInfo[] = [
 // =============================================================================
 
 export const KeyLegend: React.FC<KeyLegendProps> = ({
-  position = 'bottom-right',
+  position = 'bottom-left',
   collapsed: initialCollapsed = false,
   className = '',
   /** Offset from right edge to sit left of dock */

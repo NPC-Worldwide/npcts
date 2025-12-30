@@ -38,12 +38,14 @@ interface RoomProps {
   onWallClick?: (wall: WallType, name: string) => void;
   onDoorClick?: (door: DoorType, name: string) => void;
   onDoorHover?: (door: DoorType | null, name?: string) => void;
+  onDoorDragEnd?: (door: DoorType, name: string, x: number, y: number) => void;
   onAppClick?: (app: ApplicationType, name: string) => void;
   onAppDoubleClick?: (app: ApplicationType, name: string) => void;
   onAppHover?: (app: ApplicationType | null, name?: string) => void;
   onAppMouseDown?: (app: ApplicationType, name: string, e: React.MouseEvent) => void;
   onAppDragStart?: (app: ApplicationType, name: string, e: React.DragEvent) => void;
   onAppDragEnd?: (app: ApplicationType, name: string, e: React.DragEvent) => void;
+  onAppDelete?: (name: string) => void;
   /** Children (for overlays, character, etc.) */
   children?: React.ReactNode;
 }
@@ -64,18 +66,20 @@ export const Room: React.FC<RoomProps> = ({
   onWallClick,
   onDoorClick,
   onDoorHover,
+  onDoorDragEnd,
   onAppClick,
   onAppDoubleClick,
   onAppHover,
   onAppMouseDown,
   onAppDragStart,
   onAppDragEnd,
+  onAppDelete,
   children,
 }) => {
   const roomStyle: React.CSSProperties = {
     position: 'relative',
-    width: viewport.width,
-    height: viewport.height,
+    width: '100%',
+    height: '100%',
     overflow: 'hidden',
     backgroundColor: '#1a1a2e',
     ...customStyle,
@@ -119,9 +123,11 @@ export const Room: React.FC<RoomProps> = ({
           name={name}
           onClick={(d, n) => onDoorClick?.(d, n || name)}
           onHover={(d, n) => onDoorHover?.(d, n)}
+          onDragEnd={(d, n, x, y) => onDoorDragEnd?.(d, n || name, x, y)}
           selected={selectedElement === name}
           highlighted={highlightedDoor === name}
           showLabel={editMode}
+          draggable={editMode}
         />
       ))}
 
@@ -137,6 +143,7 @@ export const Room: React.FC<RoomProps> = ({
           onMouseDown={onAppMouseDown}
           onDragStart={onAppDragStart}
           onDragEnd={onAppDragEnd}
+          onDelete={onAppDelete}
           selected={selectedElement === name}
           highlighted={highlightedApp === name}
           draggable={editMode}
@@ -211,25 +218,6 @@ export const EditModeOverlay: React.FC<EditModeOverlayProps> = ({
         >
           press f to exit
         </button>
-      </div>
-
-      {/* Trash zone indicator */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(239, 68, 68, 0.3)',
-          border: '2px dashed #ef4444',
-          padding: '20px 40px',
-          borderRadius: 8,
-          color: '#fff',
-          fontSize: 12,
-          pointerEvents: 'auto',
-        }}
-      >
-        🗑️ Drag here to delete
       </div>
 
       {children}

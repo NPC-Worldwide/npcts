@@ -38,6 +38,7 @@ import {
   roomConfigToPixels,
   calculateViewportDimensions,
 } from '../utils/transforms';
+import { TASKBAR_HEIGHT } from '../components/MediaPlayerDock';
 import {
   checkAllCollisions,
   findCorrespondingDoor,
@@ -153,6 +154,11 @@ interface SpatialContextValue {
   openAvatarEditor: () => void;
   closeAvatarEditor: () => void;
   updateAvatarSettings: (settings: AvatarSettings) => void;
+
+  // World Map
+  showWorldMap: boolean;
+  openWorldMap: () => void;
+  closeWorldMap: () => void;
 }
 
 // Avatar Settings type
@@ -235,9 +241,9 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
   const [editMode, setEditMode] = useState(false);
   const [character, setCharacter] = useState<CharacterState | null>(null);
 
-  // Viewport dimensions
+  // Viewport dimensions (subtract taskbar height so walls are flush)
   const [viewport, setViewport] = useState<ViewportDimensions>(() =>
-    calculateViewportDimensions(width, height)
+    calculateViewportDimensions(width, height - TASKBAR_HEIGHT)
   );
 
   // Current room data (converted to pixels)
@@ -255,6 +261,7 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
   const [nearbyApp, setNearbyApp] = useState<Application | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showAvatarEditor, setShowAvatarEditor] = useState(false);
+  const [showWorldMap, setShowWorldMap] = useState(false);
 
   // User Settings - load from localStorage if available
   const [userSettings, setUserSettings] = useState<UserSettings>(() => {
@@ -275,7 +282,7 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
       messagesApps: [],
       emailApps: [],
       calendarApps: [],
-      showKeyLegend: true,
+      showKeyLegend: false,
       showMinimap: false,
       avatar: DEFAULT_AVATAR_SETTINGS,
       hasCompletedSetup: false,
@@ -332,11 +339,11 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
     }
   }, [config, currentRoom, viewport]);
 
-  // Update viewport on window resize
+  // Update viewport on window resize (subtract taskbar height)
   useEffect(() => {
     const handleResize = () => {
       setViewport(
-        calculateViewportDimensions(window.innerWidth, window.innerHeight)
+        calculateViewportDimensions(window.innerWidth, window.innerHeight - TASKBAR_HEIGHT)
       );
     };
 
@@ -616,6 +623,16 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
     });
   }, []);
 
+  // World Map methods
+  const openWorldMap = useCallback(() => {
+    closeAppMenu();
+    setShowWorldMap(true);
+  }, [closeAppMenu]);
+
+  const closeWorldMap = useCallback(() => {
+    setShowWorldMap(false);
+  }, []);
+
   // =============================================================================
   // Config Management
   // =============================================================================
@@ -666,7 +683,7 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
     (name: string, updates: Partial<RoomConfig>) => {
       setConfig((prev) => {
         if (!prev || !prev.rooms[name]) return prev;
-        return {
+        const newConfig = {
           ...prev,
           rooms: {
             ...prev.rooms,
@@ -676,9 +693,14 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
             },
           },
         };
+        // Save immediately with the new config
+        configClient.saveConfig(newConfig).catch((err) => {
+          console.error('Failed to auto-save config after room update:', err);
+        });
+        return newConfig;
       });
     },
-    []
+    [configClient]
   );
 
   // =============================================================================
@@ -713,7 +735,7 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
         if (!prev || !prev.rooms[roomName]) return prev;
         const { [appName]: deleted, ...remaining } =
           prev.rooms[roomName].applications;
-        return {
+        const newConfig = {
           ...prev,
           rooms: {
             ...prev.rooms,
@@ -723,9 +745,14 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
             },
           },
         };
+        // Auto-save after deletion
+        configClient.saveConfig(newConfig).catch((err) => {
+          console.error('Failed to auto-save config after app deletion:', err);
+        });
+        return newConfig;
       });
     },
-    []
+    [configClient]
   );
 
   const updateApplication = useCallback(
@@ -815,7 +842,10 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
         if (!prev || !prev.rooms[roomName]) return prev;
         const door = prev.rooms[roomName].doors[doorName];
         if (!door) return prev;
-        return {
+
+        // Update the door in the current room
+        const updatedDoor = { ...door, ...updates };
+        let newConfig = {
           ...prev,
           rooms: {
             ...prev.rooms,
@@ -823,14 +853,76 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
               ...prev.rooms[roomName],
               doors: {
                 ...prev.rooms[roomName].doors,
-                [doorName]: {
-                  ...door,
-                  ...updates,
-                },
+                [doorName]: updatedDoor,
               },
             },
           },
         };
+
+        // If orientation changed, update the corresponding door in the connected room
+        if (updates.orientation && door.leadsTo) {
+          const targetRoom = door.leadsTo;
+          const targetRoomData = prev.rooms[targetRoom];
+
+          if (targetRoomData) {
+            // Find the door that leads back to this room
+            const correspondingDoorEntry = Object.entries(targetRoomData.doors).find(
+              ([_, d]) => d.leadsTo === roomName
+            );
+
+            if (correspondingDoorEntry) {
+              const [correspondingDoorName, correspondingDoor] = correspondingDoorEntry;
+
+              // Calculate opposite orientation
+              const oppositeOrientation: Record<string, string> = {
+                up: 'down',
+                down: 'up',
+                left: 'right',
+                right: 'left',
+              };
+              const newOrientation = oppositeOrientation[updates.orientation] || correspondingDoor.orientation;
+
+              // Calculate new position for corresponding door
+              let correspondingUpdates: Partial<DoorConfig> = {
+                orientation: newOrientation as DoorConfig['orientation'],
+              };
+
+              // Match x position for up/down doors, y position for left/right doors
+              if (updates.orientation === 'up' || updates.orientation === 'down') {
+                correspondingUpdates.x = updates.x ?? updatedDoor.x;
+                correspondingUpdates.y = newOrientation === 'up' ? 0 : 93;
+              } else {
+                correspondingUpdates.y = updates.y ?? updatedDoor.y;
+                correspondingUpdates.x = newOrientation === 'left' ? 0 : 93;
+              }
+
+              // Also sync width/height
+              if (updates.width !== undefined) correspondingUpdates.width = updates.width;
+              if (updates.height !== undefined) correspondingUpdates.height = updates.height;
+
+              newConfig = {
+                ...newConfig,
+                rooms: {
+                  ...newConfig.rooms,
+                  [targetRoom]: {
+                    ...newConfig.rooms[targetRoom],
+                    doors: {
+                      ...newConfig.rooms[targetRoom].doors,
+                      [correspondingDoorName]: {
+                        ...correspondingDoor,
+                        ...correspondingUpdates,
+                      },
+                    },
+                  },
+                },
+              };
+
+              console.log(`Door sync: ${roomName}/${doorName} (${updates.orientation}) -> ${targetRoom}/${correspondingDoorName} (${newOrientation})`);
+            }
+          }
+        }
+
+        return newConfig;
       });
     },
     []
@@ -1019,6 +1111,11 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
     openAvatarEditor,
     closeAvatarEditor,
     updateAvatarSettings,
+
+    // World Map
+    showWorldMap,
+    openWorldMap,
+    closeWorldMap,
   };
 
   return (

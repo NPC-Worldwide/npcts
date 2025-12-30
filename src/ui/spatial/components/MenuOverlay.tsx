@@ -5,7 +5,7 @@
  * Shows clickable menu items that execute commands when clicked.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Application } from '../../../core/spatial';
 
 interface MenuOverlayProps {
@@ -208,6 +208,18 @@ export function MenuOverlay({
   onToggleEditMode,
 }: MenuOverlayProps): React.ReactElement {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+
+  // ESC to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const handleItemClick = (item: any, e: React.MouseEvent) => {
     e.preventDefault();

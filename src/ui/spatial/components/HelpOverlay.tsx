@@ -4,7 +4,7 @@
  * Displays a modern help overlay with keyboard shortcuts and controls.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // =============================================================================
 // Component Props
@@ -225,6 +225,18 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({
   className = '',
 }) => {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+
+  // ESC to close
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Group bindings by category
   const bindingsByCategory = KEY_BINDINGS.reduce(

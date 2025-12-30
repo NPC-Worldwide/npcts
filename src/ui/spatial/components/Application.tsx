@@ -23,6 +23,7 @@ interface ApplicationProps {
   onMouseDown?: (app: ApplicationType, name: string, e: React.MouseEvent) => void;
   onDragStart?: (app: ApplicationType, name: string, e: React.DragEvent) => void;
   onDragEnd?: (app: ApplicationType, name: string, e: React.DragEvent) => void;
+  onDelete?: (name: string) => void;
   selected?: boolean;
   highlighted?: boolean;
   draggable?: boolean;
@@ -45,6 +46,7 @@ export const Application: React.FC<ApplicationProps> = ({
   onMouseDown,
   onDragStart,
   onDragEnd,
+  onDelete,
   selected = false,
   highlighted = false,
   draggable = false,
@@ -69,6 +71,7 @@ export const Application: React.FC<ApplicationProps> = ({
       transform: app.rotation ? `rotate(${app.rotation}deg)` : 'none',
       outline: selected ? '2px solid #3b82f6' : 'none',
       outlineOffset: '2px',
+      overflow: 'visible',
       ...customStyle,
     };
 
@@ -112,6 +115,12 @@ export const Application: React.FC<ApplicationProps> = ({
 
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
+      // Prevent default browser image drag behavior
+      e.preventDefault();
+      // Use a transparent image as drag ghost
+      const img = new Image();
+      img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+      e.dataTransfer.setDragImage(img, 0, 0);
       onDragStart?.(app, name, e);
     },
     [app, name, onDragStart]
@@ -234,6 +243,38 @@ export const Application: React.FC<ApplicationProps> = ({
             setShowMenu(false);
           }}
         />
+      )}
+
+      {/* Delete button in edit mode */}
+      {draggable && onDelete && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(name);
+          }}
+          style={{
+            position: 'absolute',
+            top: -6,
+            right: -6,
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            backgroundColor: '#ef4444',
+            border: '2px solid #fff',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+            zIndex: 9999,
+          }}
+        >
+          ✕
+        </button>
       )}
     </div>
   );

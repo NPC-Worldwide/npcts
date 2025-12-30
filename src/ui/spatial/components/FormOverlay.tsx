@@ -284,6 +284,19 @@ export const FormOverlay: React.FC<FormOverlayProps> = ({
   children,
   width,
 }) => {
+  // ESC to close
+  useEffect(() => {
+    if (!visible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [visible, onClose]);
+
   if (!visible) return null;
 
   const handleOverlayClick = (e: React.MouseEvent) => {

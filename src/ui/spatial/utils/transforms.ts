@@ -119,7 +119,7 @@ export function doorConfigToPixels(
     // Horizontal doors on top/bottom walls
     width = config.width
       ? percentToPixels(config.width, viewport.width)
-      : wallHeight;
+      : 60; // Default door width of 60px
     height = wallHeight;
 
     // Position door ON the wall based on orientation

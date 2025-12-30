@@ -16,8 +16,10 @@ import { useKeyboardInput } from '../hooks/useKeyboardInput';
 import { Room, EditModeOverlay, Minimap } from './Room';
 import { Character } from './Character';
 import { HelpOverlay } from './HelpOverlay';
-import { KeyLegend } from './KeyLegend';
 import { MenuOverlay } from './MenuOverlay';
+import { MediaPlayerDock } from './MediaPlayerDock';
+
+const TASKBAR_HEIGHT = 36;
 
 // =============================================================================
 // Component Props
@@ -52,6 +54,12 @@ interface SpatialWorldProps {
   loadingComponent?: React.ReactNode;
   /** Custom error component */
   errorComponent?: (error: string) => React.ReactNode;
+  /** Time tracking - seconds in current room */
+  roomTime?: number;
+  /** Time tracking - total seconds today */
+  totalTime?: number;
+  /** Callback to open stats panel */
+  onOpenStats?: () => void;
 }
 
 // =============================================================================
@@ -64,7 +72,7 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
   className = '',
   style: customStyle,
   showMinimap = false,
-  showKeyLegend = true,
+  showKeyLegend = false,
   enableHelpOverlay = true,
   onAppOpen,
   onRoomChange,
@@ -73,6 +81,9 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
   onEditModeChange,
   loadingComponent,
   errorComponent,
+  roomTime = 0,
+  totalTime = 0,
+  onOpenStats,
 }) => {
   const {
     config,
@@ -89,6 +100,8 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
     executeCommand,
     saveConfig,
     updateApplication,
+    deleteApplication,
+    updateDoor,
     // UI state
     showMenu,
     menuItems,
@@ -112,6 +125,10 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
     setNearbyApp: setContextNearbyApp,
     // User settings
     userSettings,
+    // Settings & Avatar & World Map
+    openSettings,
+    openAvatarEditor,
+    openWorldMap,
   } = useSpatial();
 
   // Local state
@@ -432,26 +449,41 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
     );
   }
 
+  // If explicit height is passed, use it for container; otherwise use viewport + taskbar
+  // Room height is always container minus taskbar
+  const containerHeight = height || (viewport.height + TASKBAR_HEIGHT);
+  const roomHeight = containerHeight - TASKBAR_HEIGHT;
+  const roomViewport = { ...viewport, height: roomHeight };
+
   return (
     <div
-      ref={containerRef}
-      className={`spatial-world ${className}`}
+      className={`spatial-world-container ${className}`}
       style={{
-        position: 'relative',
         width: width || viewport.width,
-        height: height || viewport.height,
+        height: containerHeight,
         overflow: 'hidden',
-        cursor: draggingApp ? 'grabbing' : 'default',
         ...customStyle,
       }}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
     >
-      {/* Room with all elements */}
-      <Room
+      {/* Main room area */}
+      <div
+        ref={containerRef}
+        className="spatial-world"
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: roomHeight,
+          overflow: 'hidden',
+          cursor: draggingApp ? 'grabbing' : 'default',
+        }}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
+        {/* Room with all elements */}
+        <Room
         room={currentRoomData}
-        viewport={viewport}
+        viewport={roomViewport}
         editMode={editMode}
         selectedElement={selectedElement}
         highlightedApp={highlightedApp}
@@ -461,12 +493,72 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
         onAppMouseDown={handleAppDragStart}
         onDoorClick={handleDoorClick}
         onDoorHover={(door, name) => setHighlightedDoor(door ? name : undefined)}
+        onDoorDragEnd={(door, name, x, y) => {
+          // Detect which wall edge is closest
+          const distToLeft = x;
+          const distToRight = roomViewport.width - x;
+          const distToTop = y;
+          const distToBottom = roomViewport.height - y;
+
+          const minDist = Math.min(distToLeft, distToRight, distToTop, distToBottom);
+
+          let newOrientation = door.orientation;
+          let newWidth = door.width;
+          let newHeight = door.height;
+
+          const isCurrentlyVertical = door.orientation === 'left' || door.orientation === 'right';
+          let willBeVertical = isCurrentlyVertical;
+
+          if (minDist === distToLeft) {
+            newOrientation = 'left';
+            willBeVertical = true;
+          } else if (minDist === distToRight) {
+            newOrientation = 'right';
+            willBeVertical = true;
+          } else if (minDist === distToTop) {
+            newOrientation = 'up';
+            willBeVertical = false;
+          } else {
+            newOrientation = 'down';
+            willBeVertical = false;
+          }
+
+          // Swap width/height if orientation type changed
+          if (isCurrentlyVertical !== willBeVertical) {
+            newWidth = door.height;
+            newHeight = door.width;
+          }
+
+          // Snap to wall edge
+          let finalX = x;
+          let finalY = y;
+          if (newOrientation === 'left') finalX = 0;
+          if (newOrientation === 'right') finalX = roomViewport.width - newWidth;
+          if (newOrientation === 'up') finalY = 0;
+          if (newOrientation === 'down') finalY = roomViewport.height - newHeight;
+
+          // Convert everything to percentage for storage
+          const percentX = (finalX / roomViewport.width) * 100;
+          const percentY = (finalY / roomViewport.height) * 100;
+          const percentWidth = (newWidth / roomViewport.width) * 100;
+          const percentHeight = (newHeight / roomViewport.height) * 100;
+
+          updateDoor(currentRoom, name, {
+            x: percentX,
+            y: percentY,
+            orientation: newOrientation,
+            width: percentWidth,
+            height: percentHeight,
+          });
+          saveConfig?.();
+        }}
         onAppHover={(app, name) => {
           // Don't override character-based highlighting
           if (!nearbyApp) {
             setHighlightedApp(app ? name : undefined);
           }
         }}
+        onAppDelete={(name) => deleteApplication(currentRoom, name)}
       >
         {/* Character */}
         <Character
@@ -520,9 +612,6 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
         </div>
       )}
 
-      {/* Key legend */}
-      {showKeyLegend && !editMode && <KeyLegend />}
-
       {/* Help overlay */}
       {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
 
@@ -540,22 +629,27 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
         />
       )}
 
-      {/* Room name indicator */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 20,
-          left: 20,
-          backgroundColor: 'rgba(0,0,0,0.7)',
-          color: '#fff',
-          padding: '6px 12px',
-          borderRadius: 4,
-          fontSize: 12,
-          zIndex: 100,
-        }}
-      >
-        {currentRoom}
       </div>
+
+      {/* Taskbar at bottom */}
+      <MediaPlayerDock
+        mediaPlayers={userSettings.mediaPlayers || []}
+        messagesApps={userSettings.messagesApps || []}
+        emailApps={userSettings.emailApps || []}
+        calendarApps={userSettings.calendarApps || []}
+        onAddApp={handleAddApplication}
+        onAddRoom={handleAddRoom}
+        onToggleEdit={handleEditModeToggle}
+        onShowHelp={handleHelpToggle}
+        editMode={editMode}
+        onOpenSettings={openSettings}
+        onOpenAvatarEditor={openAvatarEditor}
+        onOpenWorldMap={openWorldMap}
+        onOpenStats={onOpenStats}
+        currentRoom={currentRoom}
+        roomTime={roomTime}
+        totalTime={totalTime}
+      />
     </div>
   );
 };

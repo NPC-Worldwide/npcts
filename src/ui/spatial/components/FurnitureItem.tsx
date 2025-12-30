@@ -80,6 +80,12 @@ export const FurnitureItem: React.FC<FurnitureItemProps> = ({
     setIsDragging(false);
   }, []);
 
+  const handleDeleteClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDelete?.(item.id);
+  }, [item.id, onDelete]);
+
   // Attach global mouse listeners when dragging
   React.useEffect(() => {
     if (isDragging) {
@@ -126,6 +132,7 @@ export const FurnitureItem: React.FC<FurnitureItemProps> = ({
     outline: selected ? '2px solid #f59e0b' : 'none',
     outlineOffset: 2,
     borderRadius: 4,
+    overflow: 'visible',
   };
 
   // Apply color tint if item has color
@@ -166,6 +173,33 @@ export const FurnitureItem: React.FC<FurnitureItemProps> = ({
           }}>
             {item.name}
           </div>
+        )}
+        {/* Delete button in edit mode */}
+        {editMode && onDelete && (
+          <button
+            onClick={handleDeleteClick}
+            style={{
+              position: 'absolute',
+              top: -6,
+              right: -6,
+              width: 22,
+              height: 22,
+              borderRadius: '50%',
+              backgroundColor: '#ef4444',
+              border: '2px solid #fff',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+              zIndex: 9999,
+            }}
+          >
+            ✕
+          </button>
         )}
       </div>
     );
@@ -211,19 +245,32 @@ export const FurnitureItem: React.FC<FurnitureItemProps> = ({
         </div>
       )}
 
-      {/* Delete hint when selected */}
-      {editMode && selected && (
-        <div style={{
-          position: 'absolute',
-          bottom: -20,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          color: '#ef4444',
-          fontSize: 10,
-          whiteSpace: 'nowrap',
-        }}>
-          Press Delete to remove
-        </div>
+      {/* Delete button in edit mode */}
+      {editMode && onDelete && (
+        <button
+          onClick={handleDeleteClick}
+          style={{
+            position: 'absolute',
+            top: -6,
+            right: -6,
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            backgroundColor: '#ef4444',
+            border: '2px solid #fff',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+            zIndex: 9999,
+          }}
+        >
+          ✕
+        </button>
       )}
     </div>
   );

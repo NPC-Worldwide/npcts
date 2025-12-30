@@ -402,6 +402,19 @@ export const AvatarEditorOverlay: React.FC<AvatarEditorOverlayProps> = ({
     setSelectedPreset(presetIndex >= 0 ? presetIndex : null);
   }, [settings, visible]);
 
+  // ESC to close
+  useEffect(() => {
+    if (!visible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [visible, onClose]);
+
   if (!visible) return null;
 
   const handlePresetSelect = (index: number) => {

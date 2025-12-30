@@ -13,12 +13,20 @@ import React, { useState } from 'react';
 // Types
 // =============================================================================
 
+export interface UsageLimits {
+  maxTimeSeconds?: number;      // Max time allowed (in seconds)
+  maxOpens?: number;            // Max number of opens/entries
+  blockedAfter?: string;        // Time of day after which blocked (e.g., "22:00")
+  blockedBefore?: string;       // Time of day before which blocked (e.g., "06:00")
+}
+
 export interface UsageData {
   name: string;
   timeSpent: number;
-  limit?: number;
+  openCount: number;
   type: 'app' | 'room';
   icon?: string;
+  limits?: UsageLimits;
 }
 
 export interface AppInfo {
@@ -37,7 +45,8 @@ export interface ControlPanelProps {
   usage: UsageData[];
   /** Callbacks */
   onOpenApp?: (app: AppInfo) => void;
-  onSetLimit?: (name: string, limitSeconds: number | null) => void;
+  onEditApp?: (app: AppInfo) => void;
+  onSetLimits?: (name: string, type: 'app' | 'room', limits: UsageLimits | null) => void;
   onOpenSettings?: () => void;
   onOpenWorldMap?: () => void;
   onOpenAvatarEditor?: () => void;
@@ -77,12 +86,38 @@ const getBarColor = (percent: number): string => {
 
 type TabKey = 'apps' | 'stats' | 'tools';
 
+// Check if currently blocked by time-of-day
+const isTimeBlocked = (limits?: UsageLimits): boolean => {
+  if (!limits?.blockedAfter && !limits?.blockedBefore) return false;
+  const now = new Date();
+  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  if (limits.blockedAfter && currentTime >= limits.blockedAfter) return true;
+  if (limits.blockedBefore && currentTime < limits.blockedBefore) return true;
+  return false;
+};
+
+// Check if blocked by limits
+const isBlocked = (data: UsageData): { blocked: boolean; reason?: string } => {
+  if (!data.limits) return { blocked: false };
+  if (data.limits.maxTimeSeconds && data.timeSpent >= data.limits.maxTimeSeconds) {
+    return { blocked: true, reason: 'Time limit reached' };
+  }
+  if (data.limits.maxOpens && data.openCount >= data.limits.maxOpens) {
+    return { blocked: true, reason: 'Open limit reached' };
+  }
+  if (isTimeBlocked(data.limits)) {
+    return { blocked: true, reason: 'Blocked at this time' };
+  }
+  return { blocked: false };
+};
+
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   currentRoom,
   apps = [],
   usage = [],
   onOpenApp,
-  onSetLimit,
+  onEditApp,
+  onSetLimits,
   onOpenSettings,
   onOpenWorldMap,
   onOpenAvatarEditor,
@@ -92,23 +127,26 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 }) => {
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<TabKey>('apps');
-  const [editingLimit, setEditingLimit] = useState<string | null>(null);
-  const [limitInput, setLimitInput] = useState('');
+  const [editingLimits, setEditingLimits] = useState<{ name: string; type: 'app' | 'room' } | null>(null);
+  const [limitForm, setLimitForm] = useState<UsageLimits>({});
 
   if (!visible) return null;
 
   const totalToday = usage.reduce((sum, u) => sum + u.timeSpent, 0);
   const roomUsage = usage.find(u => u.name === currentRoom && u.type === 'room');
 
-  const handleSetLimit = (name: string) => {
-    const mins = parseInt(limitInput, 10);
-    if (!isNaN(mins) && mins > 0) {
-      onSetLimit?.(name, mins * 60);
-    } else if (limitInput === '' || limitInput === '0') {
-      onSetLimit?.(name, null);
-    }
-    setEditingLimit(null);
-    setLimitInput('');
+  const startEditingLimits = (name: string, type: 'app' | 'room') => {
+    const existing = usage.find(u => u.name === name && u.type === type);
+    setLimitForm(existing?.limits || {});
+    setEditingLimits({ name, type });
+  };
+
+  const saveLimits = () => {
+    if (!editingLimits) return;
+    const hasLimits = limitForm.maxTimeSeconds || limitForm.maxOpens || limitForm.blockedAfter || limitForm.blockedBefore;
+    onSetLimits?.(editingLimits.name, editingLimits.type, hasLimits ? limitForm : null);
+    setEditingLimits(null);
+    setLimitForm({});
   };
 
   const toolButtons = [
@@ -229,7 +267,94 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
 
           {/* Content */}
-          <div style={{ padding: '12px', maxHeight: 280, overflowY: 'auto' }}>
+          <div style={{ padding: '12px', maxHeight: 320, overflowY: 'auto' }}>
+            {/* Limit Editor Modal */}
+            {editingLimits && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'rgba(0,0,0,0.8)',
+                borderRadius: 12,
+                padding: 16,
+                zIndex: 10,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#fff', fontWeight: 600 }}>
+                    Set Limits: {editingLimits.name}
+                  </span>
+                  <button onClick={() => setEditingLimits(null)} style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer' }}>✕</button>
+                </div>
+
+                {/* Max Time */}
+                <div>
+                  <label style={{ color: '#aaa', fontSize: 11, display: 'block', marginBottom: 4 }}>Max Time (minutes)</label>
+                  <input
+                    type="number"
+                    placeholder="No limit"
+                    value={limitForm.maxTimeSeconds ? Math.floor(limitForm.maxTimeSeconds / 60) : ''}
+                    onChange={(e) => setLimitForm(f => ({ ...f, maxTimeSeconds: e.target.value ? parseInt(e.target.value) * 60 : undefined }))}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    style={{ width: '100%', padding: '6px 8px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, color: '#fff', fontSize: 12 }}
+                  />
+                </div>
+
+                {/* Max Opens */}
+                <div>
+                  <label style={{ color: '#aaa', fontSize: 11, display: 'block', marginBottom: 4 }}>Max Opens/Entries</label>
+                  <input
+                    type="number"
+                    placeholder="No limit"
+                    value={limitForm.maxOpens || ''}
+                    onChange={(e) => setLimitForm(f => ({ ...f, maxOpens: e.target.value ? parseInt(e.target.value) : undefined }))}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    style={{ width: '100%', padding: '6px 8px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, color: '#fff', fontSize: 12 }}
+                  />
+                </div>
+
+                {/* Blocked After */}
+                <div>
+                  <label style={{ color: '#aaa', fontSize: 11, display: 'block', marginBottom: 4 }}>Blocked After (time of day)</label>
+                  <input
+                    type="time"
+                    value={limitForm.blockedAfter || ''}
+                    onChange={(e) => setLimitForm(f => ({ ...f, blockedAfter: e.target.value || undefined }))}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    style={{ width: '100%', padding: '6px 8px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, color: '#fff', fontSize: 12 }}
+                  />
+                </div>
+
+                {/* Blocked Before */}
+                <div>
+                  <label style={{ color: '#aaa', fontSize: 11, display: 'block', marginBottom: 4 }}>Blocked Before (time of day)</label>
+                  <input
+                    type="time"
+                    value={limitForm.blockedBefore || ''}
+                    onChange={(e) => setLimitForm(f => ({ ...f, blockedBefore: e.target.value || undefined }))}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    style={{ width: '100%', padding: '6px 8px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 4, color: '#fff', fontSize: 12 }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button
+                    onClick={() => { setLimitForm({}); saveLimits(); }}
+                    style={{ flex: 1, padding: '8px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 4, color: '#aaa', cursor: 'pointer', fontSize: 12 }}
+                  >
+                    Clear All
+                  </button>
+                  <button
+                    onClick={saveLimits}
+                    style={{ flex: 1, padding: '8px', background: '#6366f1', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer', fontSize: 12 }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Apps Tab */}
             {activeTab === 'apps' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -238,40 +363,65 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     No apps in this room
                   </div>
                 ) : (
-                  apps.map((app, i) => (
-                    <button
-                      key={i}
-                      onClick={() => onOpenApp?.(app)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '10px 12px',
-                        background: 'rgba(255,255,255,0.05)',
-                        border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: 8,
-                        color: '#ddd',
-                        fontSize: 13,
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        transition: 'all 0.15s',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                      }}
-                    >
-                      {app.image ? (
-                        <img src={app.image} alt="" style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'cover' }} />
-                      ) : (
-                        <span style={{ fontSize: 18 }}>{app.icon || '📱'}</span>
-                      )}
-                      <span style={{ flex: 1 }}>{app.name}</span>
-                      <span style={{ color: '#666', fontSize: 10 }}>▶</span>
-                    </button>
-                  ))
+                  apps.map((app, i) => {
+                    const appUsage = usage.find(u => u.name === app.name && u.type === 'app');
+                    const blockStatus = appUsage ? isBlocked(appUsage) : { blocked: false };
+
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '8px 10px',
+                          background: blockStatus.blocked ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.05)',
+                          border: blockStatus.blocked ? '1px solid rgba(239,68,68,0.3)' : '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 8,
+                          opacity: blockStatus.blocked ? 0.6 : 1,
+                        }}
+                      >
+                        {app.image ? (
+                          <img src={app.image} alt="" style={{ width: 24, height: 24, borderRadius: 4, objectFit: 'cover' }} />
+                        ) : (
+                          <span style={{ fontSize: 18 }}>{app.icon || '📱'}</span>
+                        )}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: '#ddd', fontSize: 12 }}>{app.name}</div>
+                          {blockStatus.blocked && (
+                            <div style={{ color: '#ef4444', fontSize: 9 }}>{blockStatus.reason}</div>
+                          )}
+                          {appUsage && !blockStatus.blocked && (
+                            <div style={{ color: '#666', fontSize: 9 }}>
+                              {formatTime(appUsage.timeSpent)} • {appUsage.openCount} opens
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => onEditApp?.(app)}
+                          style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '4px', fontSize: 12 }}
+                          title="Edit app"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => startEditingLimits(app.name, 'app')}
+                          style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', padding: '4px', fontSize: 12 }}
+                          title="Set limits"
+                        >
+                          ⏱️
+                        </button>
+                        <button
+                          onClick={() => !blockStatus.blocked && onOpenApp?.(app)}
+                          disabled={blockStatus.blocked}
+                          style={{ background: 'none', border: 'none', color: blockStatus.blocked ? '#666' : '#888', cursor: blockStatus.blocked ? 'not-allowed' : 'pointer', padding: '4px', fontSize: 12 }}
+                          title="Open"
+                        >
+                          ▶
+                        </button>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -284,16 +434,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     No usage data yet
                   </div>
                 ) : (
-                  [...usage].sort((a, b) => b.timeSpent - a.timeSpent).slice(0, 8).map((item) => {
-                    const percent = getUsagePercent(item.timeSpent, item.limit);
-                    const isEditing = editingLimit === item.name;
+                  [...usage].sort((a, b) => b.timeSpent - a.timeSpent).slice(0, 10).map((item) => {
+                    const maxTime = item.limits?.maxTimeSeconds;
+                    const percent = getUsagePercent(item.timeSpent, maxTime);
+                    const blockStatus = isBlocked(item);
+                    const hasLimits = item.limits && (item.limits.maxTimeSeconds || item.limits.maxOpens || item.limits.blockedAfter || item.limits.blockedBefore);
 
                     return (
                       <div
                         key={`${item.type}-${item.name}`}
                         style={{
                           padding: '8px 10px',
-                          background: 'rgba(255,255,255,0.03)',
+                          background: blockStatus.blocked ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.03)',
+                          border: blockStatus.blocked ? '1px solid rgba(239,68,68,0.2)' : '1px solid transparent',
                           borderRadius: 6,
                         }}
                       >
@@ -306,13 +459,38 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                           <span style={{ color: '#ddd', fontSize: 12 }}>
                             {item.type === 'room' ? '🏠' : '📱'} {item.name}
                           </span>
-                          <span style={{ color: '#aaa', fontSize: 11 }}>
-                            {formatTime(item.timeSpent)}
-                            {item.limit && ` / ${formatTime(item.limit)}`}
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ color: '#aaa', fontSize: 11 }}>
+                              {formatTime(item.timeSpent)}
+                              {maxTime && ` / ${formatTime(maxTime)}`}
+                            </span>
+                            <button
+                              onClick={() => startEditingLimits(item.name, item.type)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: hasLimits ? '#6366f1' : '#666',
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                                fontSize: 11,
+                              }}
+                              title="Set limits"
+                            >
+                              ⏱️
+                            </button>
+                          </div>
                         </div>
 
-                        {item.limit && (
+                        {/* Usage stats line */}
+                        <div style={{ color: '#666', fontSize: 10, marginBottom: 4 }}>
+                          {item.openCount} opens
+                          {item.limits?.maxOpens && ` / ${item.limits.maxOpens} max`}
+                          {item.limits?.blockedAfter && ` • blocked after ${item.limits.blockedAfter}`}
+                          {item.limits?.blockedBefore && ` • blocked before ${item.limits.blockedBefore}`}
+                        </div>
+
+                        {/* Progress bar for time limit */}
+                        {maxTime && (
                           <div style={{
                             height: 3,
                             background: 'rgba(255,255,255,0.1)',
@@ -328,75 +506,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                           </div>
                         )}
 
-                        {isEditing ? (
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            <input
-                              type="number"
-                              placeholder="mins"
-                              value={limitInput}
-                              onChange={(e) => setLimitInput(e.target.value)}
-                              onKeyDown={(e) => {
-                                e.stopPropagation();
-                                if (e.key === 'Enter') handleSetLimit(item.name);
-                                if (e.key === 'Escape') setEditingLimit(null);
-                              }}
-                              style={{
-                                width: 50,
-                                padding: '2px 6px',
-                                fontSize: 10,
-                                background: 'rgba(255,255,255,0.1)',
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                borderRadius: 4,
-                                color: '#fff',
-                              }}
-                              autoFocus
-                            />
-                            <button
-                              onClick={() => handleSetLimit(item.name)}
-                              style={{
-                                padding: '2px 6px',
-                                fontSize: 9,
-                                background: '#22c55e',
-                                border: 'none',
-                                borderRadius: 3,
-                                color: '#fff',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              Set
-                            </button>
-                            <button
-                              onClick={() => setEditingLimit(null)}
-                              style={{
-                                padding: '2px 6px',
-                                fontSize: 9,
-                                background: 'rgba(255,255,255,0.1)',
-                                border: 'none',
-                                borderRadius: 3,
-                                color: '#aaa',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              ✕
-                            </button>
+                        {/* Block status */}
+                        {blockStatus.blocked && (
+                          <div style={{ color: '#ef4444', fontSize: 10 }}>
+                            🚫 {blockStatus.reason}
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setEditingLimit(item.name);
-                              setLimitInput(item.limit ? String(item.limit / 60) : '');
-                            }}
-                            style={{
-                              padding: '2px 4px',
-                              fontSize: 9,
-                              background: 'transparent',
-                              border: 'none',
-                              color: '#666',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {item.limit ? 'Edit limit' : 'Set limit'}
-                          </button>
                         )}
                       </div>
                     );

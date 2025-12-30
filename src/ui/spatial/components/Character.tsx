@@ -29,12 +29,12 @@ export interface AvatarSettings {
   accessory: 'none' | 'hat' | 'glasses' | 'crown' | 'halo';
 }
 
-// Accessory emojis
+// Accessory emojis/symbols
 const ACCESSORY_EMOJIS: Record<string, string> = {
-  hat: '🎩',
-  glasses: '👓',
+  hat: '🧢',
+  glasses: '🕶️',
   crown: '👑',
-  halo: '😇',
+  halo: '○', // Unicode ring, styled with CSS
 };
 
 // =============================================================================
@@ -216,24 +216,13 @@ export const Character: React.FC<CharacterProps> = ({
       width: scaledWidth,
       height: scaledHeight,
       zIndex: 100,
+      overflow: 'visible',
       transition: state.isMoving ? 'none' : 'left 0.1s, top 0.1s',
       cursor: onClick ? 'pointer' : 'default',
       ...customStyle,
     };
   }, [state.x, state.y, state.isMoving, scaledWidth, scaledHeight, width, height, customStyle, onClick]);
 
-  const spriteStyle = useMemo((): React.CSSProperties => {
-    return {
-      width: '100%',
-      height: '100%',
-      objectFit: 'contain',
-      transform: useRotation ? `rotate(${rotation}deg)` : 'none',
-      transition: 'transform 0.1s',
-      imageRendering: 'pixelated', // For pixel art style
-      filter: colorFilter,
-      boxShadow: effectShadow,
-    };
-  }, [useRotation, rotation, colorFilter, effectShadow]);
 
   // Render placeholder if sprites not loaded
   if (!spritesLoaded || !currentSpriteUrl) {
@@ -281,29 +270,72 @@ export const Character: React.FC<CharacterProps> = ({
         role="img"
         aria-label={displayName}
       >
-        {/* Accessory above character */}
-        {avatarSettings?.accessory && avatarSettings.accessory !== 'none' && (
-          <div
-            style={{
-              position: 'absolute',
-              top: avatarSettings.accessory === 'halo' ? -8 : -20,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              fontSize: avatarSettings.accessory === 'halo' ? 28 : 24,
-              zIndex: 101,
-              pointerEvents: 'none',
-              filter: avatarSettings.accessory === 'crown'
-                ? 'drop-shadow(0 2px 4px rgba(255,215,0,0.5))'
-                : avatarSettings.accessory === 'halo'
-                ? 'drop-shadow(0 0 8px rgba(255,255,200,0.8))'
-                : 'none',
-            }}
-          >
-            {ACCESSORY_EMOJIS[avatarSettings.accessory]}
-          </div>
-        )}
+        {/* Accessory - positioned based on head location after rotation */}
+        {avatarSettings?.accessory && avatarSettings.accessory !== 'none' && (() => {
+          // Calculate crown position based on rotation
+          // Head starts at top-center, rotates with character
+          const headOffset = avatarSettings.accessory === 'halo' ? 8 : 12;
+          let crownStyle: React.CSSProperties = {
+            position: 'absolute',
+            fontSize: avatarSettings.accessory === 'halo' ? 28 : 24,
+            zIndex: 102,
+            pointerEvents: 'none',
+            filter: avatarSettings.accessory === 'crown'
+              ? 'drop-shadow(0 2px 4px rgba(255,215,0,0.5))'
+              : avatarSettings.accessory === 'halo'
+              ? 'drop-shadow(0 0 8px rgba(255,255,200,0.8))'
+              : 'none',
+          };
 
-        {/* Sparkle particles */}
+          // Position based on direction (where the head is after rotation)
+          switch (state.direction) {
+            case 'down': // head at top
+              crownStyle.top = -headOffset;
+              crownStyle.left = '50%';
+              crownStyle.transform = 'translateX(-50%)';
+              break;
+            case 'up': // head at bottom
+              crownStyle.bottom = -headOffset;
+              crownStyle.left = '50%';
+              crownStyle.transform = 'translateX(-50%) rotate(180deg)';
+              break;
+            case 'left': // head at right
+              crownStyle.right = -headOffset;
+              crownStyle.top = '50%';
+              crownStyle.transform = 'translateY(-50%) rotate(90deg)';
+              break;
+            case 'right': // head at left
+              crownStyle.left = -headOffset;
+              crownStyle.top = '50%';
+              crownStyle.transform = 'translateY(-50%) rotate(-90deg)';
+              break;
+          }
+
+          return (
+            <div style={crownStyle}>
+              {ACCESSORY_EMOJIS[avatarSettings.accessory]}
+            </div>
+          );
+        })()}
+
+        {/* Rotating sprite */}
+        <img
+          src={currentSpriteUrl}
+          alt={displayName}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            imageRendering: 'pixelated',
+            filter: colorFilter,
+            boxShadow: effectShadow,
+            transform: useRotation ? `rotate(${rotation}deg)` : 'none',
+            transition: 'transform 0.1s',
+          }}
+          draggable={false}
+        />
+
+        {/* Sparkle particles - outside rotation */}
         {avatarSettings?.trailEffect === 'sparkle' && (
           <>
             <span
@@ -344,13 +376,6 @@ export const Character: React.FC<CharacterProps> = ({
             </span>
           </>
         )}
-
-        <img
-          src={currentSpriteUrl}
-          alt={displayName}
-          style={spriteStyle}
-          draggable={false}
-        />
 
         {/* Name tag */}
         {showName && displayName && (

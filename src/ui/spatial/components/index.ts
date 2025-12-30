@@ -81,6 +81,7 @@ export {
 } from './WorldMapOverlay';
 export {
   MediaPlayerDock,
+  TASKBAR_HEIGHT,
   type MediaPlayerDockProps,
 } from './MediaPlayerDock';
 export {
@@ -93,10 +94,11 @@ export {
 export {
   UsageTracker,
   type UsageTrackerProps,
-  type UsageData,
 } from './UsageTracker';
 export {
   ControlPanel,
   type ControlPanelProps,
   type AppInfo,
+  type UsageLimits,
+  type UsageData,  // Full version with openCount and limits
 } from './ControlPanel';

@@ -942,13 +942,14 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                         )}
 
                         {selection?.type === 'lasso' && selection.points && (
-                            <svg className="absolute inset-0 pointer-events-none w-full h-full">
+                            <svg className="absolute inset-0 pointer-events-none w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
                                 <polygon
-                                    points={selection.points.map(p => `${p.x}%,${p.y}%`).join(' ')}
+                                    points={selection.points.map(p => `${p.x},${p.y}`).join(' ')}
                                     fill="rgba(59, 130, 246, 0.1)"
                                     stroke="rgb(59, 130, 246)"
-                                    strokeWidth="2"
-                                    strokeDasharray="5,5"
+                                    strokeWidth="0.5"
+                                    strokeDasharray="1,1"
+                                    vectorEffect="non-scaling-stroke"
                                 />
                             </svg>
                         )}

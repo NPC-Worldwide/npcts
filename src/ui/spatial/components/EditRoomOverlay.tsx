@@ -281,7 +281,26 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
     setNewFloorPatternSize(floorPatternSize || '');
   }, [roomName, backgroundImage, floorTile, floorTileSize, floorPattern, floorPatternSize, visible]);
 
+  // Close on Escape key
+  useEffect(() => {
+    if (!visible) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [visible, onClose]);
+
   if (!visible) return null;
+
+  // Close on backdrop click
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -469,6 +488,25 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
                   />
                   <span style={{ color: '#e5e7eb', fontSize: 13, minWidth: 50 }}>
                     {newFloorTileSize}px
+                  </span>
+                </div>
+              )}
+
+              {/* Pattern size slider - only for patterns */}
+              {newFloorPattern && (
+                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Pattern size:</span>
+                  <input
+                    type="range"
+                    min="50"
+                    max="250"
+                    step="10"
+                    value={parseInt(newFloorPatternSize) || 100}
+                    onChange={(e) => setNewFloorPatternSize(`${e.target.value}px ${e.target.value}px`)}
+                    style={{ flex: 1, cursor: 'pointer' }}
+                  />
+                  <span style={{ color: '#e5e7eb', fontSize: 13, minWidth: 50 }}>
+                    {parseInt(newFloorPatternSize) || 100}px
                   </span>
                 </div>
               )}

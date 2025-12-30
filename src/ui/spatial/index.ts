@@ -197,7 +197,7 @@ export type { FloorPatternType } from './components';
 export type { UsageData, UsageTrackerProps } from './components';
 
 // Re-export control panel types
-export type { ControlPanelProps, AppInfo } from './components';
+export type { ControlPanelProps, AppInfo, UsageLimits } from './components';
 
 // Re-export floor tile picker types
 export type { FloorTileOption, FloorTilePickerProps } from './components';

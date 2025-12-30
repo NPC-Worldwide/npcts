@@ -224,6 +224,19 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
     setLocal(settings);
   }, [settings, visible]);
 
+  // ESC to close (unless first run)
+  useEffect(() => {
+    if (!visible || isFirstRun) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [visible, isFirstRun, onClose]);
+
   if (!visible) return null;
 
   const handleSave = () => {
