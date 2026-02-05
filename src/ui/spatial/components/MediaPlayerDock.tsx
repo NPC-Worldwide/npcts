@@ -34,6 +34,7 @@ export interface MediaPlayerDockProps {
   onOpenWorldMap?: () => void;
   onOpenAvatarEditor?: () => void;
   onOpenStats?: () => void;
+  onEditRoom?: () => void;
   currentRoom?: string;
   // Time tracking
   roomTime?: number; // seconds in current room
@@ -120,6 +121,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
   onOpenWorldMap,
   onOpenAvatarEditor,
   onOpenStats,
+  onEditRoom,
   currentRoom,
   roomTime = 0,
   totalTime = 0,
@@ -753,7 +755,11 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
               {/* Room name and time */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {currentRoom && (
-                  <span style={{ color: '#ccc', fontSize: 11 }}>{currentRoom}</span>
+                  <span
+                    onClick={onEditRoom}
+                    style={{ color: '#ccc', fontSize: 11, cursor: 'pointer' }}
+                    title="Edit Room"
+                  >{currentRoom}</span>
                 )}
                 <span style={{ color: '#666', fontSize: 10 }}>
                   {formatTime(roomTime)} | {formatTime(totalTime)} total

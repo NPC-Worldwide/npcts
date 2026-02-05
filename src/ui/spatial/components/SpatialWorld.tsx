@@ -60,6 +60,8 @@ interface SpatialWorldProps {
   totalTime?: number;
   /** Callback to open stats panel */
   onOpenStats?: () => void;
+  /** Callback to edit current room */
+  onEditRoom?: () => void;
 }
 
 // =============================================================================
@@ -84,6 +86,7 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
   roomTime = 0,
   totalTime = 0,
   onOpenStats,
+  onEditRoom,
 }) => {
   const {
     config,
@@ -646,6 +649,7 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
         onOpenAvatarEditor={openAvatarEditor}
         onOpenWorldMap={openWorldMap}
         onOpenStats={onOpenStats}
+        onEditRoom={onEditRoom}
         currentRoom={currentRoom}
         roomTime={roomTime}
         totalTime={totalTime}

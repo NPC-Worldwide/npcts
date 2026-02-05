@@ -473,8 +473,8 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
                 disabled={isUploading}
               />
 
-              {/* Tile size slider - only for image tiles */}
-              {newBackgroundImage && newFloorTile && (
+              {/* Tile size slider - show when there's a background image */}
+              {newBackgroundImage && !newFloorPattern && (
                 <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
                   <span style={{ color: '#9ca3af', fontSize: 13 }}>Tile size:</span>
                   <input
@@ -483,7 +483,7 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
                     max="300"
                     step="10"
                     value={newFloorTileSize}
-                    onChange={(e) => setNewFloorTileSize(Number(e.target.value))}
+                    onChange={(e) => { setNewFloorTileSize(Number(e.target.value)); setNewFloorTile(true); }}
                     style={{ flex: 1, cursor: 'pointer' }}
                   />
                   <span style={{ color: '#e5e7eb', fontSize: 13, minWidth: 50 }}>
