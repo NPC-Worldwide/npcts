@@ -462,6 +462,8 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
     <div
       className={`spatial-world-container ${className}`}
       style={{
+        display: 'flex',
+        flexDirection: 'column',
         width: width || viewport.width,
         height: containerHeight,
         overflow: 'hidden',
@@ -475,7 +477,8 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
         style={{
           position: 'relative',
           width: '100%',
-          height: roomHeight,
+          flex: 1,
+          minHeight: 0,
           overflow: 'hidden',
           cursor: draggingApp ? 'grabbing' : 'default',
         }}

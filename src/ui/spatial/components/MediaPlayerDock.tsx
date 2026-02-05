@@ -150,29 +150,6 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
   ];
   const categories = allCategories.filter(cat => cat.items.length > 0);
 
-  // Keyboard shortcuts for apps
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      // Number keys 1-4 for app shortcuts
-      const num = parseInt(e.key);
-      if (num >= 1 && num <= 4) {
-        const category = categories[num - 1];
-        if (category) {
-          if (category.items.length === 1) {
-            setActiveService(category.items[0]);
-          } else if (category.items.length > 1) {
-            setExpandedCategory(category.key);
-          }
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [categories]);
 
   // Service-specific media control scripts
   const getMediaScripts = (serviceId: string) => {
@@ -692,7 +669,8 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
         width: '100%',
         display: 'flex',
         alignItems: 'center',
-        padding: collapsed ? '2px 8px' : '0 8px',
+        padding: collapsed ? '2px 8px' : '0 12px 2px 8px',
+        boxSizing: 'border-box',
         background: 'linear-gradient(to top, rgba(40,30,20,0.98) 0%, rgba(60,45,30,0.95) 100%)',
         borderTop: '1px solid #6a5040',
         transition: 'height 0.15s ease',
@@ -896,8 +874,8 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
                 </div>
               )}
 
-              {/* Media controls */}
-              {(mediaPlayers.length > 0 || activeService) && (
+              {/* Media controls - only show when something is playing */}
+              {activeService && (
                 <>
                   <button onClick={() => sendMediaCommand('prev')} style={btnStyle()} title="Previous">
                     ⏮
@@ -922,7 +900,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
               )}
 
               {/* App shortcuts */}
-              {categories.map(({ key, items, shortcut }) => {
+              {categories.map(({ key, items }) => {
                 const isActive = activeService && items.some(i => i.id === activeService.id);
                 const isExpanded = expandedCategory === key;
                 const displayIcon = items.length === 1 ? items[0].icon : getCategoryIcon(key);
@@ -935,10 +913,9 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
                     onMouseEnter={() => setHoveredItem(key)}
                     onMouseLeave={() => setHoveredItem(null)}
                     style={btnStyle(isActive || isExpanded, hoveredItem === key)}
-                    title={`${displayLabel} (${shortcut})`}
+                    title={displayLabel}
                   >
                     <span style={{ fontSize: 16 }}>{displayIcon}</span>
-                    <span style={kbdStyle}>{shortcut}</span>
                   </button>
                 );
               })}

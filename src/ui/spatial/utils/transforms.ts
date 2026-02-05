@@ -27,12 +27,13 @@ import type {
 export function calculateViewportDimensions(
   windowWidth: number,
   windowHeight: number,
-  wallPercentage: number = 7
+  wallPercentage: number = 7,
+  sideWallPercentage: number = 1.5
 ): ViewportDimensions {
   return {
     width: windowWidth,
     height: windowHeight,
-    wallWidthX: (wallPercentage / 100) * windowWidth,
+    wallWidthX: (sideWallPercentage / 100) * windowWidth,
     wallWidthY: (wallPercentage / 100) * windowHeight,
   };
 }
