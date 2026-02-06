@@ -1,26 +1,47 @@
 /**
- * AvatarEditorOverlay Component
+ * AvatarEditorOverlay Component - Real Avatar Editor
  *
- * Lets users customize their character appearance - colors, accessories, name display.
- * Inspired by MMO character customization (Puzzle Pirates, etc.)
+ * Features:
+ * - Upload custom sprite sheet
+ * - Pick from avatar gallery
+ * - Character part customization (hair, eyes, body, clothes)
+ * - Display name and status
+ * - Live preview
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-// =============================================================================
 // Types
-// =============================================================================
+export type AvatarAccessory = 'none' | 'hat' | 'glasses' | 'crown' | 'halo' | 'horns' | 'cat-ears' | 'headphones' | 'bow' | 'bandana';
+export type AvatarTrailEffect = 'none' | 'sparkle' | 'glow' | 'shadow' | 'hearts' | 'fire' | 'ice' | 'leaves';
+export type AvatarEmote = 'neutral' | 'happy' | 'sad' | 'angry' | 'surprised' | 'sleeping' | 'love' | 'cool';
+
+export interface AvatarParts {
+  body?: string;
+  hair?: string;
+  eyes?: string;
+  clothes?: string;
+}
 
 export interface AvatarSettings {
   name: string;
   primaryColor: string;
   secondaryColor: string;
   outlineColor: string;
-  size: number; // 0.5 to 2.0 scale
+  size: number;
   showNameTag: boolean;
   nameTagColor: string;
-  trailEffect: 'none' | 'sparkle' | 'glow' | 'shadow';
-  accessory: 'none' | 'hat' | 'glasses' | 'crown' | 'halo';
+  trailEffect: AvatarTrailEffect;
+  accessory: AvatarAccessory;
+  statusMessage?: string;
+  emote?: AvatarEmote;
+  moveSpeed?: number;
+  nameTagStyle?: 'default' | 'bubble' | 'minimal' | 'fancy';
+  useCustomColors?: boolean;
+  // New fields for real avatar editing
+  customSprite?: string; // URL to custom uploaded sprite
+  selectedAvatar?: string; // ID of selected gallery avatar
+  parts?: AvatarParts; // Selected parts for modular avatar
 }
 
 export interface AvatarEditorOverlayProps {
@@ -28,13 +49,9 @@ export interface AvatarEditorOverlayProps {
   onClose: () => void;
   settings: AvatarSettings;
   onSave: (settings: AvatarSettings) => void;
-  /** Sprite URL to show in preview (e.g., Aurelianos sprite) */
   previewSpriteUrl?: string;
+  onUploadSprite?: (file: File) => Promise<string>;
 }
-
-// =============================================================================
-// Default Avatar Settings
-// =============================================================================
 
 export const DEFAULT_AVATAR_SETTINGS: AvatarSettings = {
   name: 'Player',
@@ -46,342 +63,55 @@ export const DEFAULT_AVATAR_SETTINGS: AvatarSettings = {
   nameTagColor: '#ffffff',
   trailEffect: 'none',
   accessory: 'none',
+  statusMessage: '',
+  emote: 'neutral',
+  moveSpeed: 1.0,
+  nameTagStyle: 'default',
+  useCustomColors: false,
 };
 
-// =============================================================================
-// Color Presets
-// =============================================================================
-
-const COLOR_PRESETS = [
-  { name: 'Ocean', primary: '#4a90d9', secondary: '#2d5a8a', outline: '#1a3a5c' },
-  { name: 'Forest', primary: '#4ade80', secondary: '#22c55e', outline: '#166534' },
-  { name: 'Sunset', primary: '#fb923c', secondary: '#ea580c', outline: '#9a3412' },
-  { name: 'Berry', primary: '#c084fc', secondary: '#a855f7', outline: '#6b21a8' },
-  { name: 'Rose', primary: '#fb7185', secondary: '#e11d48', outline: '#9f1239' },
-  { name: 'Gold', primary: '#fbbf24', secondary: '#d97706', outline: '#92400e' },
-  { name: 'Slate', primary: '#94a3b8', secondary: '#64748b', outline: '#334155' },
-  { name: 'Midnight', primary: '#6366f1', secondary: '#4f46e5', outline: '#3730a3' },
+// Pre-made avatar gallery
+const AVATAR_GALLERY = [
+  { id: 'aureliano', name: 'Aureliano', preview: '/images/sprites/aureliano/0.png' },
+  { id: 'martian', name: 'Martian', preview: '/images/sprites/martian_sprite.png' },
 ];
 
-const ACCESSORY_OPTIONS = [
-  { id: 'none', label: 'None', emoji: '—' },
-  { id: 'hat', label: 'Hat', emoji: '🎩' },
-  { id: 'glasses', label: 'Glasses', emoji: '👓' },
-  { id: 'crown', label: 'Crown', emoji: '👑' },
-  { id: 'halo', label: 'Halo', emoji: '😇' },
-];
-
-const TRAIL_OPTIONS = [
-  { id: 'none', label: 'None' },
-  { id: 'sparkle', label: 'Sparkle ✨' },
-  { id: 'glow', label: 'Glow 🌟' },
-  { id: 'shadow', label: 'Shadow 👤' },
-];
-
-// =============================================================================
-// Styles
-// =============================================================================
-
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    backdropFilter: 'blur(8px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    animation: 'fadeIn 0.2s ease-out',
-  },
-  container: {
-    backgroundColor: '#1e1e2e',
-    borderRadius: 20,
-    padding: 0,
-    maxWidth: 600,
-    width: '90%',
-    maxHeight: '85vh',
-    overflow: 'hidden',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1)',
-    animation: 'slideUp 0.3s ease-out',
-    display: 'flex',
-    flexDirection: 'column' as const,
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '24px 28px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-  },
-  titleContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 14,
-  },
-  titleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 24,
-  },
-  title: {
-    margin: 0,
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: 700,
-  },
-  subtitle: {
-    margin: '4px 0 0 0',
-    color: '#9ca3af',
-    fontSize: 13,
-  },
-  closeButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: 'none',
-    borderRadius: 10,
-    width: 40,
-    height: 40,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    color: '#9ca3af',
-    fontSize: 22,
-    transition: 'all 0.2s',
-  },
-  body: {
-    padding: '24px 28px',
-    overflowY: 'auto' as const,
-    flex: 1,
-    display: 'flex',
-    gap: 24,
-  },
-  previewColumn: {
-    flex: '0 0 180px',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: 16,
-  },
-  previewContainer: {
-    width: 150,
-    height: 180,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative' as const,
-  },
-  previewAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: '50%',
-    position: 'relative' as const,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewAccessory: {
-    position: 'absolute' as const,
-    top: -15,
-    fontSize: 24,
-  },
-  previewNameTag: {
-    position: 'absolute' as const,
-    bottom: -24,
-    fontSize: 12,
-    padding: '2px 8px',
-    borderRadius: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    whiteSpace: 'nowrap' as const,
-  },
-  settingsColumn: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: 20,
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: 10,
-  },
-  sectionTitle: {
-    color: '#e5e7eb',
-    fontSize: 13,
-    fontWeight: 600,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-  },
-  input: {
-    width: '100%',
-    padding: '10px 14px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    borderRadius: 10,
-    color: '#fff',
-    fontSize: 14,
-    outline: 'none',
-    boxSizing: 'border-box' as const,
-  },
-  colorGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(4, 1fr)',
-    gap: 8,
-  },
-  colorPreset: {
-    width: '100%',
-    aspectRatio: '1',
-    borderRadius: 10,
-    cursor: 'pointer',
-    border: '2px solid transparent',
-    transition: 'all 0.2s',
-    position: 'relative' as const,
-    overflow: 'hidden',
-  },
-  colorPresetSelected: {
-    borderColor: '#fff',
-    boxShadow: '0 0 0 2px rgba(99, 102, 241, 0.5)',
-  },
-  optionGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(5, 1fr)',
-    gap: 8,
-  },
-  optionButton: {
-    padding: '10px 8px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
-    color: '#e5e7eb',
-    fontSize: 12,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: 4,
-  },
-  optionButtonSelected: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    borderColor: 'rgba(99, 102, 241, 0.5)',
-    color: '#fff',
-  },
-  slider: {
-    width: '100%',
-    height: 6,
-    borderRadius: 3,
-    appearance: 'none' as const,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    cursor: 'pointer',
-  },
-  toggle: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '12px 14px',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
-  },
-  toggleLabel: {
-    color: '#e5e7eb',
-    fontSize: 14,
-  },
-  toggleSwitch: {
-    width: 44,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    position: 'relative' as const,
-  },
-  toggleSwitchOn: {
-    backgroundColor: '#6366f1',
-  },
-  toggleKnob: {
-    position: 'absolute' as const,
-    top: 2,
-    left: 2,
-    width: 20,
-    height: 20,
-    borderRadius: '50%',
-    backgroundColor: '#fff',
-    transition: 'all 0.2s',
-  },
-  toggleKnobOn: {
-    left: 22,
-  },
-  footer: {
-    padding: '20px 28px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  button: {
-    padding: '12px 24px',
-    borderRadius: 10,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    border: 'none',
-  },
-  buttonPrimary: {
-    background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
-    color: '#fff',
-  },
-  buttonSecondary: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: '#e5e7eb',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-  },
+// Part options (would be loaded from /api/avatar-parts in production)
+const PART_OPTIONS = {
+  body: [
+    { id: 'default', name: 'Default', color: '#f5d0c5' },
+    { id: 'tan', name: 'Tan', color: '#d4a574' },
+    { id: 'dark', name: 'Dark', color: '#8d5524' },
+    { id: 'pale', name: 'Pale', color: '#ffe4d6' },
+  ],
+  hair: [
+    { id: 'none', name: 'None', color: 'transparent' },
+    { id: 'black', name: 'Black', color: '#1a1a1a' },
+    { id: 'brown', name: 'Brown', color: '#4a3728' },
+    { id: 'blonde', name: 'Blonde', color: '#d4a855' },
+    { id: 'red', name: 'Red', color: '#8b2500' },
+    { id: 'blue', name: 'Blue', color: '#3b82f6' },
+    { id: 'pink', name: 'Pink', color: '#ec4899' },
+    { id: 'white', name: 'White', color: '#e5e5e5' },
+  ],
+  eyes: [
+    { id: 'brown', name: 'Brown', color: '#5c4033' },
+    { id: 'blue', name: 'Blue', color: '#4a90d9' },
+    { id: 'green', name: 'Green', color: '#22c55e' },
+    { id: 'gray', name: 'Gray', color: '#6b7280' },
+    { id: 'purple', name: 'Purple', color: '#8b5cf6' },
+    { id: 'red', name: 'Red', color: '#ef4444' },
+  ],
+  clothes: [
+    { id: 'casual', name: 'Casual', color: '#3b82f6' },
+    { id: 'formal', name: 'Formal', color: '#1e293b' },
+    { id: 'sporty', name: 'Sporty', color: '#22c55e' },
+    { id: 'punk', name: 'Punk', color: '#ef4444' },
+    { id: 'cozy', name: 'Cozy', color: '#f59e0b' },
+  ],
 };
 
-// =============================================================================
-// AvatarEditorOverlay Component
-// =============================================================================
-
-// Helper to calculate color filter from hex color
-const getColorFilter = (hexColor: string) => {
-  if (!hexColor) return 'none';
-
-  const hex = hexColor;
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-
-  // Calculate hue from RGB
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let hue = 0;
-
-  if (max !== min) {
-    const d = max - min;
-    if (max === r) hue = ((g - b) / d + (g < b ? 6 : 0)) * 60;
-    else if (max === g) hue = ((b - r) / d + 2) * 60;
-    else hue = ((r - g) / d + 4) * 60;
-  }
-
-  // Aurelianos is roughly blue (hue ~200), so calculate offset
-  const baseHue = 200;
-  const hueRotate = hue - baseHue;
-
-  // Also adjust saturation based on color intensity
-  const saturation = max === 0 ? 0 : ((max - min) / max) * 100;
-  const saturationAdjust = saturation / 50;
-
-  return `hue-rotate(${hueRotate}deg) saturate(${saturationAdjust})`;
-};
+type TabType = 'gallery' | 'parts' | 'details';
 
 export const AvatarEditorOverlay: React.FC<AvatarEditorOverlayProps> = ({
   visible,
@@ -389,20 +119,17 @@ export const AvatarEditorOverlay: React.FC<AvatarEditorOverlayProps> = ({
   settings,
   onSave,
   previewSpriteUrl,
+  onUploadSprite,
 }) => {
   const [local, setLocal] = useState<AvatarSettings>(settings);
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>('gallery');
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setLocal(settings);
-    // Find matching preset
-    const presetIndex = COLOR_PRESETS.findIndex(
-      p => p.primary === settings.primaryColor && p.secondary === settings.secondaryColor
-    );
-    setSelectedPreset(presetIndex >= 0 ? presetIndex : null);
   }, [settings, visible]);
 
-  // ESC to close
   useEffect(() => {
     if (!visible) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -415,318 +142,489 @@ export const AvatarEditorOverlay: React.FC<AvatarEditorOverlayProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [visible, onClose]);
 
-  if (!visible) return null;
+  const handleUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUploadSprite) return;
 
-  const handlePresetSelect = (index: number) => {
-    const preset = COLOR_PRESETS[index];
-    setSelectedPreset(index);
-    setLocal(prev => ({
-      ...prev,
-      primaryColor: preset.primary,
-      secondaryColor: preset.secondary,
-      outlineColor: preset.outline,
-    }));
-  };
+    setIsUploading(true);
+    try {
+      const url = await onUploadSprite(file);
+      setLocal(prev => ({ ...prev, customSprite: url, selectedAvatar: undefined }));
+    } catch (err) {
+      console.error('Failed to upload sprite:', err);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [onUploadSprite]);
 
   const handleSave = () => {
     onSave(local);
     onClose();
   };
 
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
+  if (!visible) return null;
 
-  // Generate color filter for sprite
-  const colorFilter = getColorFilter(local.primaryColor);
-
-  // Generate avatar preview style
-  const avatarStyle: React.CSSProperties = {
-    ...styles.previewAvatar,
-    width: 60 * local.size,
-    height: 60 * local.size,
-    ...(previewSpriteUrl ? {} : {
-      background: `radial-gradient(circle at 30% 30%, ${local.primaryColor}, ${local.secondaryColor})`,
-      border: `3px solid ${local.outlineColor}`,
-    }),
-    boxShadow: local.trailEffect === 'glow'
-      ? `0 0 20px ${local.primaryColor}80`
-      : local.trailEffect === 'shadow'
-      ? '5px 5px 15px rgba(0,0,0,0.5)'
-      : 'none',
-  };
-
-  // Sprite style with color filter
-  const spriteStyle: React.CSSProperties = {
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-    imageRendering: 'pixelated',
-    filter: colorFilter,
-  };
+  // Determine which sprite to show in preview
+  const previewSprite = local.customSprite ||
+    (local.selectedAvatar ? AVATAR_GALLERY.find(a => a.id === local.selectedAvatar)?.preview : null) ||
+    previewSpriteUrl;
 
   return (
     <>
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px) scale(0.95); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes sparkle {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50% { opacity: 1; transform: scale(1.2); }
-        }
-        .avatar-editor-slider::-webkit-slider-thumb {
-          appearance: none;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: #6366f1;
-          cursor: pointer;
-        }
+        @keyframes avatarFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes avatarSlideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
-      <div style={styles.overlay} onClick={handleOverlayClick}>
-        <div style={styles.container} onClick={(e) => e.stopPropagation()}>
+      <div
+        onClick={(e) => e.target === e.currentTarget && onClose()}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          animation: 'avatarFadeIn 0.15s',
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: '#1e1e2e',
+            borderRadius: 16,
+            width: 500,
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+            animation: 'avatarSlideUp 0.2s',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
           {/* Header */}
-          <div style={styles.header}>
-            <div style={styles.titleContainer}>
-              <div style={styles.titleIcon}>🎭</div>
-              <div>
-                <h2 style={styles.title}>Customize Avatar</h2>
-                <p style={styles.subtitle}>Make it yours</p>
-              </div>
-            </div>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '16px 20px',
+            borderBottom: '1px solid rgba(255,255,255,0.1)',
+          }}>
+            <span style={{ color: '#fff', fontSize: 17, fontWeight: 600 }}>Avatar Editor</span>
             <button
-              style={styles.closeButton}
               onClick={onClose}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                e.currentTarget.style.color = '#fff';
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#64748b',
+                fontSize: 22,
+                cursor: 'pointer',
+                padding: 0,
+                lineHeight: 1,
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                e.currentTarget.style.color = '#9ca3af';
-              }}
-            >
-              ×
-            </button>
+            >×</button>
           </div>
 
-          {/* Body */}
-          <div style={styles.body}>
-            {/* Preview Column */}
-            <div style={styles.previewColumn}>
-              <div style={styles.previewContainer}>
-                <div style={avatarStyle}>
-                  {/* Accessory above character */}
-                  {local.accessory !== 'none' && (
-                    <div style={{
-                      ...styles.previewAccessory,
-                      top: local.accessory === 'halo' ? -5 : -18,
-                      filter: local.accessory === 'crown'
-                        ? 'drop-shadow(0 2px 4px rgba(255,215,0,0.5))'
-                        : local.accessory === 'halo'
-                        ? 'drop-shadow(0 0 8px rgba(255,255,200,0.8))'
-                        : 'none',
-                    }}>
-                      {ACCESSORY_OPTIONS.find(a => a.id === local.accessory)?.emoji}
-                    </div>
-                  )}
-
-                  {/* Actual sprite or fallback circle */}
-                  {previewSpriteUrl ? (
-                    <img
-                      src={previewSpriteUrl}
-                      alt="Avatar preview"
-                      style={spriteStyle}
-                      draggable={false}
-                    />
-                  ) : (
-                    <div style={{
-                      width: '100%',
-                      height: '100%',
-                      borderRadius: '50%',
-                      background: `radial-gradient(circle at 30% 30%, ${local.primaryColor}, ${local.secondaryColor})`,
-                      border: `3px solid ${local.outlineColor}`,
-                    }} />
-                  )}
-
-                  {/* Sparkle effect */}
-                  {local.trailEffect === 'sparkle' && (
-                    <>
-                      <span style={{ position: 'absolute', top: -8, right: -8, animation: 'sparkle 1s infinite', fontSize: 14 }}>✨</span>
-                      <span style={{ position: 'absolute', bottom: -5, left: -10, animation: 'sparkle 1s infinite 0.3s', fontSize: 12 }}>✨</span>
-                      <span style={{ position: 'absolute', top: '40%', right: -12, animation: 'sparkle 1s infinite 0.6s', fontSize: 10 }}>✨</span>
-                    </>
-                  )}
+          {/* Preview + Tabs */}
+          <div style={{ display: 'flex', padding: 20, gap: 20 }}>
+            {/* Preview */}
+            <div style={{
+              width: 140,
+              height: 160,
+              backgroundColor: 'rgba(255,255,255,0.05)',
+              borderRadius: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              flexShrink: 0,
+            }}>
+              {previewSprite ? (
+                <img
+                  src={previewSprite}
+                  alt="Avatar preview"
+                  style={{
+                    width: 80,
+                    height: 80,
+                    objectFit: 'contain',
+                    imageRendering: 'pixelated',
+                  }}
+                />
+              ) : (
+                <div style={{
+                  width: 60,
+                  height: 60,
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${local.parts?.body ? PART_OPTIONS.body.find(b => b.id === local.parts?.body)?.color || '#f5d0c5' : '#f5d0c5'}, #e0c0b5)`,
+                  border: '3px solid #ccc',
+                }} />
+              )}
+              {local.showNameTag && (
+                <div style={{
+                  fontSize: 12,
+                  color: local.nameTagColor,
+                  backgroundColor: 'rgba(0,0,0,0.5)',
+                  padding: '2px 8px',
+                  borderRadius: 4,
+                }}>
+                  {local.name || 'Player'}
                 </div>
-
-                {/* Name tag */}
-                {local.showNameTag && (
-                  <div style={{ ...styles.previewNameTag, color: local.nameTagColor }}>
-                    {local.name || 'Player'}
-                  </div>
-                )}
-              </div>
-              <p style={{ color: '#6b7280', fontSize: 12, textAlign: 'center', margin: 0 }}>
-                Preview
-              </p>
+              )}
+              {local.statusMessage && (
+                <div style={{ fontSize: 10, color: '#64748b', fontStyle: 'italic' }}>
+                  "{local.statusMessage}"
+                </div>
+              )}
             </div>
 
-            {/* Settings Column */}
-            <div style={styles.settingsColumn}>
-              {/* Name */}
-              <div style={styles.section}>
-                <div style={styles.sectionTitle}>Display Name</div>
-                <input
-                  type="text"
-                  value={local.name}
-                  onChange={(e) => setLocal(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter your name"
-                  style={styles.input}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  maxLength={20}
-                />
-              </div>
-
-              {/* Color Presets */}
-              <div style={styles.section}>
-                <div style={styles.sectionTitle}>Color Theme</div>
-                <div style={styles.colorGrid}>
-                  {COLOR_PRESETS.map((preset, index) => (
-                    <div
-                      key={preset.name}
-                      title={preset.name}
-                      style={{
-                        ...styles.colorPreset,
-                        background: `linear-gradient(135deg, ${preset.primary} 0%, ${preset.secondary} 100%)`,
-                        ...(selectedPreset === index ? styles.colorPresetSelected : {}),
-                      }}
-                      onClick={() => handlePresetSelect(index)}
-                      onMouseEnter={(e) => {
-                        if (selectedPreset !== index) {
-                          e.currentTarget.style.transform = 'scale(1.05)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = 'scale(1)';
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Size */}
-              <div style={styles.section}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={styles.sectionTitle}>Size</div>
-                  <span style={{ color: '#9ca3af', fontSize: 12 }}>{Math.round(local.size * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="1.5"
-                  step="0.1"
-                  value={local.size}
-                  onChange={(e) => setLocal(prev => ({ ...prev, size: parseFloat(e.target.value) }))}
-                  style={styles.slider}
-                  className="avatar-editor-slider"
-                />
-              </div>
-
-              {/* Accessories */}
-              <div style={styles.section}>
-                <div style={styles.sectionTitle}>Accessory</div>
-                <div style={styles.optionGrid}>
-                  {ACCESSORY_OPTIONS.map((acc) => (
-                    <div
-                      key={acc.id}
-                      style={{
-                        ...styles.optionButton,
-                        ...(local.accessory === acc.id ? styles.optionButtonSelected : {}),
-                      }}
-                      onClick={() => setLocal(prev => ({ ...prev, accessory: acc.id as AvatarSettings['accessory'] }))}
-                    >
-                      <span style={{ fontSize: 18 }}>{acc.emoji}</span>
-                      <span>{acc.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Trail Effect */}
-              <div style={styles.section}>
-                <div style={styles.sectionTitle}>Trail Effect</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                  {TRAIL_OPTIONS.map((trail) => (
-                    <div
-                      key={trail.id}
-                      style={{
-                        ...styles.optionButton,
-                        ...(local.trailEffect === trail.id ? styles.optionButtonSelected : {}),
-                      }}
-                      onClick={() => setLocal(prev => ({ ...prev, trailEffect: trail.id as AvatarSettings['trailEffect'] }))}
-                    >
-                      {trail.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Show Name Tag */}
-              <div style={styles.toggle}>
-                <span style={styles.toggleLabel}>Show Name Tag</span>
-                <div
-                  style={{
-                    ...styles.toggleSwitch,
-                    ...(local.showNameTag ? styles.toggleSwitchOn : {}),
-                  }}
-                  onClick={() => setLocal(prev => ({ ...prev, showNameTag: !prev.showNameTag }))}
-                >
-                  <div
+            {/* Tabs */}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+                {(['gallery', 'parts', 'details'] as TabType[]).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
                     style={{
-                      ...styles.toggleKnob,
-                      ...(local.showNameTag ? styles.toggleKnobOn : {}),
+                      flex: 1,
+                      padding: '8px 12px',
+                      background: activeTab === tab ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
+                      border: activeTab === tab ? '1px solid rgba(59,130,246,0.4)' : '1px solid transparent',
+                      borderRadius: 8,
+                      color: activeTab === tab ? '#fff' : '#94a3b8',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      textTransform: 'capitalize',
                     }}
-                  />
-                </div>
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              <div style={{ minHeight: 180 }}>
+                {activeTab === 'gallery' && (
+                  <div>
+                    {/* Upload Button */}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading || !onUploadSprite}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        background: 'rgba(59,130,246,0.1)',
+                        border: '2px dashed rgba(59,130,246,0.3)',
+                        borderRadius: 8,
+                        color: '#3b82f6',
+                        fontSize: 13,
+                        cursor: onUploadSprite ? 'pointer' : 'not-allowed',
+                        marginBottom: 12,
+                        opacity: onUploadSprite ? 1 : 0.5,
+                      }}
+                    >
+                      {isUploading ? 'Uploading...' : '📤 Upload Custom Sprite'}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleUpload}
+                      style={{ display: 'none' }}
+                    />
+
+                    {/* Gallery Grid */}
+                    <div style={{ color: '#64748b', fontSize: 11, marginBottom: 8 }}>
+                      Or pick from gallery:
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                      {AVATAR_GALLERY.map((avatar) => (
+                        <button
+                          key={avatar.id}
+                          onClick={() => setLocal(prev => ({
+                            ...prev,
+                            selectedAvatar: avatar.id,
+                            customSprite: undefined,
+                          }))}
+                          style={{
+                            padding: 8,
+                            background: local.selectedAvatar === avatar.id ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
+                            border: local.selectedAvatar === avatar.id ? '2px solid #3b82f6' : '2px solid transparent',
+                            borderRadius: 10,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          <img
+                            src={avatar.preview}
+                            alt={avatar.name}
+                            style={{
+                              width: 48,
+                              height: 48,
+                              objectFit: 'contain',
+                              imageRendering: 'pixelated',
+                            }}
+                          />
+                          <span style={{ fontSize: 10, color: '#94a3b8' }}>{avatar.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'parts' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Body/Skin */}
+                    <div>
+                      <div style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>Skin Tone</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {PART_OPTIONS.body.map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => setLocal(prev => ({
+                              ...prev,
+                              parts: { ...prev.parts, body: opt.id },
+                            }))}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              background: opt.color,
+                              border: local.parts?.body === opt.id ? '3px solid #3b82f6' : '2px solid rgba(255,255,255,0.2)',
+                              cursor: 'pointer',
+                            }}
+                            title={opt.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Hair */}
+                    <div>
+                      <div style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>Hair</div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {PART_OPTIONS.hair.map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => setLocal(prev => ({
+                              ...prev,
+                              parts: { ...prev.parts, hair: opt.id },
+                            }))}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 6,
+                              background: opt.color === 'transparent' ? 'repeating-linear-gradient(45deg, #333, #333 4px, #444 4px, #444 8px)' : opt.color,
+                              border: local.parts?.hair === opt.id ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.2)',
+                              cursor: 'pointer',
+                            }}
+                            title={opt.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Eyes */}
+                    <div>
+                      <div style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>Eyes</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {PART_OPTIONS.eyes.map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => setLocal(prev => ({
+                              ...prev,
+                              parts: { ...prev.parts, eyes: opt.id },
+                            }))}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: '50%',
+                              background: opt.color,
+                              border: local.parts?.eyes === opt.id ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.2)',
+                              cursor: 'pointer',
+                            }}
+                            title={opt.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Clothes */}
+                    <div>
+                      <div style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>Outfit</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        {PART_OPTIONS.clothes.map((opt) => (
+                          <button
+                            key={opt.id}
+                            onClick={() => setLocal(prev => ({
+                              ...prev,
+                              parts: { ...prev.parts, clothes: opt.id },
+                            }))}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 6,
+                              background: local.parts?.clothes === opt.id ? opt.color : 'rgba(255,255,255,0.05)',
+                              border: local.parts?.clothes === opt.id ? '2px solid #3b82f6' : '1px solid rgba(255,255,255,0.2)',
+                              color: local.parts?.clothes === opt.id ? '#fff' : '#94a3b8',
+                              fontSize: 11,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {opt.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'details' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Name */}
+                    <div>
+                      <div style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>Display Name</div>
+                      <input
+                        type="text"
+                        value={local.name}
+                        onChange={(e) => setLocal(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Your name"
+                        maxLength={20}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          backgroundColor: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 8,
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    {/* Status */}
+                    <div>
+                      <div style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>Status Message</div>
+                      <input
+                        type="text"
+                        value={local.statusMessage || ''}
+                        onChange={(e) => setLocal(prev => ({ ...prev, statusMessage: e.target.value }))}
+                        placeholder="What's on your mind?"
+                        maxLength={50}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          backgroundColor: 'rgba(255,255,255,0.05)',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          borderRadius: 8,
+                          color: '#fff',
+                          fontSize: 14,
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    {/* Show Name Tag Toggle */}
+                    <div
+                      onClick={() => setLocal(prev => ({ ...prev, showNameTag: !prev.showNameTag }))}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '10px 12px',
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ color: '#94a3b8', fontSize: 13 }}>Show Name Tag</span>
+                      <div style={{
+                        width: 36,
+                        height: 20,
+                        borderRadius: 10,
+                        background: local.showNameTag ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                        position: 'relative',
+                        transition: 'all 0.2s',
+                      }}>
+                        <div style={{
+                          position: 'absolute',
+                          top: 2,
+                          left: local.showNameTag ? 18 : 2,
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          background: '#fff',
+                          transition: 'all 0.2s',
+                        }} />
+                      </div>
+                    </div>
+
+                    {/* Move Speed */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ color: '#64748b', fontSize: 11 }}>Move Speed</span>
+                        <span style={{ color: '#94a3b8', fontSize: 11 }}>{Math.round((local.moveSpeed || 1) * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2"
+                        step="0.1"
+                        value={local.moveSpeed || 1}
+                        onChange={(e) => setLocal(prev => ({ ...prev, moveSpeed: parseFloat(e.target.value) }))}
+                        style={{ width: '100%', cursor: 'pointer' }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Footer */}
-          <div style={styles.footer}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 10,
+            padding: '14px 20px',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+          }}>
             <button
-              style={{ ...styles.button, ...styles.buttonSecondary }}
               onClick={onClose}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+              style={{
+                padding: '10px 20px',
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: 8,
+                color: '#94a3b8',
+                fontSize: 13,
+                cursor: 'pointer',
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-              }}
-            >
-              Cancel
-            </button>
+            >Cancel</button>
             <button
-              style={{ ...styles.button, ...styles.buttonPrimary }}
               onClick={handleSave}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.9';
+              style={{
+                padding: '10px 20px',
+                background: 'linear-gradient(135deg, #ec4899, #8b5cf6)',
+                border: 'none',
+                borderRadius: 8,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1';
-              }}
-            >
-              Save Avatar
-            </button>
+            >Save Avatar</button>
           </div>
         </div>
       </div>

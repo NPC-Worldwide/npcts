@@ -13,7 +13,7 @@ import type {
   ViewportDimensions,
 } from '../../../core/spatial';
 import { Wall } from './Wall';
-import { Door } from './Door';
+import { Door, type OnlineRoomInfo } from './Door';
 import { FloorPattern } from './FloorPattern';
 import { Application } from './Application';
 
@@ -46,6 +46,8 @@ interface RoomProps {
   onAppDragStart?: (app: ApplicationType, name: string, e: React.DragEvent) => void;
   onAppDragEnd?: (app: ApplicationType, name: string, e: React.DragEvent) => void;
   onAppDelete?: (name: string) => void;
+  /** Online info for doors leading to online rooms */
+  onlineInfoByDoor?: Record<string, OnlineRoomInfo>;
   /** Children (for overlays, character, etc.) */
   children?: React.ReactNode;
 }
@@ -74,6 +76,7 @@ export const Room: React.FC<RoomProps> = ({
   onAppDragStart,
   onAppDragEnd,
   onAppDelete,
+  onlineInfoByDoor,
   children,
 }) => {
   const roomStyle: React.CSSProperties = {
@@ -126,8 +129,9 @@ export const Room: React.FC<RoomProps> = ({
           onDragEnd={(d, n, x, y) => onDoorDragEnd?.(d, n || name, x, y)}
           selected={selectedElement === name}
           highlighted={highlightedDoor === name}
-          showLabel={editMode}
+          showLabel={editMode || door.type === 'outside'}
           draggable={editMode}
+          onlineInfo={onlineInfoByDoor?.[name]}
         />
       ))}
 

@@ -48,6 +48,7 @@ export {
   WALL_STYLES,
   Door,
   DoorArrow,
+  type OnlineRoomInfo,
   FloorPattern,
   TessellatedFloor,
   FLOOR_PATTERNS,
@@ -103,6 +104,15 @@ export {
   // Control Panel
   ControlPanel,
 } from './components';
+
+// Outside / Multiplayer
+export {
+  OutsideProvider,
+  useOutside,
+  OutsideWorld,
+  OutsideChatOverlay,
+  useOutsideSocket,
+} from './outside';
 
 // Editors
 export { ConfigEditor } from './editors';
@@ -188,6 +198,10 @@ export type {
   SpatialConfigClient,
   CommandExecutionClient,
   ImageUploadClient,
+  // Multiplayer
+  RemotePlayer,
+  OutsideZoneConfig,
+  OutsideChatMessage,
 } from '../../core/spatial';
 
 // Re-export floor pattern type
@@ -201,3 +215,9 @@ export type { ControlPanelProps, AppInfo, UsageLimits } from './components';
 
 // Re-export floor tile picker types
 export type { FloorTileOption, FloorTilePickerProps } from './components';
+
+// Re-export outside/multiplayer types
+export type { OutsideProviderProps, OutsideContextValue } from './outside';
+export type { OutsideWorldProps } from './outside';
+export type { OutsideChatOverlayProps } from './outside';
+export type { UseOutsideSocketOptions, OutsideInitData } from './outside';

@@ -44,6 +44,9 @@ export type {
   SpatialConfigClient,
   CommandExecutionClient,
   ImageUploadClient,
+  RemotePlayer,
+  OutsideZoneConfig,
+  OutsideChatMessage,
   // Export the interface types with different names to avoid conflicts
   Wall as WallData,
   Door as DoorData,

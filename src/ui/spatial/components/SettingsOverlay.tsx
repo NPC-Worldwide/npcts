@@ -1,28 +1,22 @@
 /**
- * SettingsOverlay Component
- *
- * Settings for browser, media player, messages, email, calendar preferences.
- * Users can select MULTIPLE services per category.
+ * SettingsOverlay Component - Collapsible Sections
  */
 
 import React, { useState, useEffect } from 'react';
 
-// =============================================================================
-// Types
-// =============================================================================
-
 export interface UserSettings {
   defaultBrowser: string;
   browserArgs?: string;
-  mediaPlayers: string[];  // Multiple selections
+  mediaPlayers: string[];
   messagesApps: string[];
   emailApps: string[];
   calendarApps: string[];
   theme?: 'dark' | 'light' | 'system';
   showKeyLegend?: boolean;
   showMinimap?: boolean;
+  showTimeTracking?: boolean;
   moveSpeed?: number;
-  hasCompletedSetup?: boolean;  // Track if user has done initial setup
+  hasCompletedSetup?: boolean;
 }
 
 export interface SettingsOverlayProps {
@@ -33,21 +27,13 @@ export interface SettingsOverlayProps {
   isFirstRun?: boolean;
 }
 
-// =============================================================================
-// Options
-// =============================================================================
-
 const BROWSER_OPTIONS = [
   { id: 'firefox', label: 'Firefox', command: 'firefox' },
   { id: 'chrome', label: 'Chrome', command: 'google-chrome' },
   { id: 'brave', label: 'Brave', command: 'brave-browser' },
   { id: 'edge', label: 'Edge', command: 'microsoft-edge' },
   { id: 'vivaldi', label: 'Vivaldi', command: 'vivaldi' },
-  { id: 'opera', label: 'Opera', command: 'opera' },
-  { id: 'librewolf', label: 'LibreWolf', command: 'librewolf' },
-  { id: 'waterfox', label: 'Waterfox', command: 'waterfox' },
-  { id: 'floorp', label: 'Floorp', command: 'floorp' },
-  { id: 'zen', label: 'Zen Browser', command: 'zen-browser' },
+  { id: 'zen', label: 'Zen', command: 'zen-browser' },
 ];
 
 export const MEDIA_OPTIONS = [
@@ -56,160 +42,29 @@ export const MEDIA_OPTIONS = [
   { id: 'soundcloud', label: 'SoundCloud', url: 'https://soundcloud.com', icon: '☁️' },
   { id: 'apple-music', label: 'Apple Music', url: 'https://music.apple.com', icon: '🍎' },
   { id: 'tidal', label: 'Tidal', url: 'https://listen.tidal.com', icon: '🌊' },
-  { id: 'pandora', label: 'Pandora', url: 'https://www.pandora.com', icon: '🎧' },
 ];
 
 export const MESSAGES_OPTIONS = [
-  { id: 'google-messages', label: 'Google Messages', url: 'https://messages.google.com', icon: '💬' },
+  { id: 'google-messages', label: 'Messages', url: 'https://messages.google.com', icon: '💬' },
   { id: 'whatsapp', label: 'WhatsApp', url: 'https://web.whatsapp.com', icon: '📱' },
   { id: 'telegram', label: 'Telegram', url: 'https://web.telegram.org', icon: '✈️' },
   { id: 'discord', label: 'Discord', url: 'https://discord.com/app', icon: '🎮' },
   { id: 'slack', label: 'Slack', url: 'https://app.slack.com', icon: '💼' },
-  { id: 'signal', label: 'Signal', url: 'https://signal.org', icon: '🔒' },
-  { id: 'messenger', label: 'Messenger', url: 'https://www.messenger.com', icon: '💙' },
 ];
 
 export const EMAIL_OPTIONS = [
   { id: 'gmail', label: 'Gmail', url: 'https://mail.google.com', icon: '📧' },
   { id: 'outlook', label: 'Outlook', url: 'https://outlook.live.com', icon: '📬' },
   { id: 'protonmail', label: 'ProtonMail', url: 'https://mail.proton.me', icon: '🔐' },
-  { id: 'yahoo', label: 'Yahoo Mail', url: 'https://mail.yahoo.com', icon: '📨' },
-  { id: 'fastmail', label: 'Fastmail', url: 'https://app.fastmail.com', icon: '⚡' },
-  { id: 'icloud', label: 'iCloud Mail', url: 'https://www.icloud.com/mail', icon: '☁️' },
 ];
 
 export const CALENDAR_OPTIONS = [
   { id: 'google-calendar', label: 'Google Calendar', url: 'https://calendar.google.com', icon: '📅' },
-  { id: 'outlook-calendar', label: 'Outlook Calendar', url: 'https://outlook.live.com/calendar', icon: '🗓️' },
+  { id: 'outlook-calendar', label: 'Outlook', url: 'https://outlook.live.com/calendar', icon: '🗓️' },
   { id: 'notion', label: 'Notion', url: 'https://notion.so', icon: '📓' },
-  { id: 'todoist', label: 'Todoist', url: 'https://todoist.com', icon: '✅' },
-  { id: 'fantastical', label: 'Fantastical', url: 'https://flexibits.com/fantastical', icon: '✨' },
 ];
 
-// =============================================================================
-// Styles
-// =============================================================================
-
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    backdropFilter: 'blur(8px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-  },
-  container: {
-    backgroundColor: '#1e1e2e',
-    borderRadius: 16,
-    maxWidth: 600,
-    width: '90%',
-    maxHeight: '90vh',
-    overflow: 'hidden',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-    display: 'flex',
-    flexDirection: 'column' as const,
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '20px 24px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-  },
-  title: {
-    margin: 0,
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 600,
-  },
-  subtitle: {
-    color: '#888',
-    fontSize: 13,
-    marginTop: 4,
-  },
-  closeBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#888',
-    fontSize: 20,
-    cursor: 'pointer',
-  },
-  body: {
-    padding: '20px 24px',
-    overflowY: 'auto' as const,
-    flex: 1,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    color: '#aaa',
-    fontSize: 11,
-    fontWeight: 600,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
-  hint: {
-    color: '#666',
-    fontSize: 11,
-    marginBottom: 10,
-    fontStyle: 'italic' as const,
-  },
-  optionGrid: {
-    display: 'flex',
-    flexWrap: 'wrap' as const,
-    gap: 8,
-  },
-  option: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '8px 12px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: '2px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-    fontSize: 13,
-    color: '#ccc',
-  },
-  optionSelected: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    borderColor: 'rgba(99, 102, 241, 0.6)',
-    color: '#fff',
-  },
-  footer: {
-    padding: '16px 24px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 10,
-  },
-  btn: {
-    padding: '10px 20px',
-    borderRadius: 8,
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    border: 'none',
-  },
-  btnPrimary: {
-    background: '#6366f1',
-    color: '#fff',
-  },
-  btnSecondary: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: '#ccc',
-  },
-};
-
-// =============================================================================
-// Component
-// =============================================================================
+type SectionKey = 'browser' | 'media' | 'messages' | 'email' | 'calendar' | 'display';
 
 export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
   visible,
@@ -219,12 +74,12 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
   isFirstRun = false,
 }) => {
   const [local, setLocal] = useState<UserSettings>(settings);
+  const [expanded, setExpanded] = useState<SectionKey | null>(isFirstRun ? 'browser' : null);
 
   useEffect(() => {
     setLocal(settings);
   }, [settings, visible]);
 
-  // ESC to close (unless first run)
   useEffect(() => {
     if (!visible || isFirstRun) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -244,7 +99,11 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
     onClose();
   };
 
-  const toggleMultiSelect = (
+  const toggleSection = (key: SectionKey) => {
+    setExpanded(prev => prev === key ? null : key);
+  };
+
+  const toggleMulti = (
     key: 'mediaPlayers' | 'messagesApps' | 'emailApps' | 'calendarApps',
     id: string
   ) => {
@@ -257,148 +116,321 @@ export const SettingsOverlay: React.FC<SettingsOverlayProps> = ({
     });
   };
 
-  const renderMultiSelect = (
-    options: { id: string; label: string; icon?: string }[],
-    selected: string[],
-    key: 'mediaPlayers' | 'messagesApps' | 'emailApps' | 'calendarApps',
-    color = '#6366f1'
-  ) => (
-    <div style={styles.optionGrid}>
-      {options.map((opt) => {
-        const isSelected = selected.includes(opt.id);
-        return (
-          <div
-            key={opt.id}
-            onClick={() => toggleMultiSelect(key, opt.id)}
-            style={{
-              ...styles.option,
-              ...(isSelected ? {
-                ...styles.optionSelected,
-                borderColor: color,
-                backgroundColor: `${color}20`,
-              } : {}),
-            }}
-          >
-            {opt.icon && <span>{opt.icon}</span>}
-            <span>{opt.label}</span>
-            {isSelected && <span style={{ marginLeft: 4 }}>✓</span>}
+  // Get summary of selected items for collapsed view
+  const getSummary = (items: string[] | undefined, options: { id: string; label: string }[]) => {
+    if (!items || items.length === 0) return 'None selected';
+    if (items.length === 1) return options.find(o => o.id === items[0])?.label || items[0];
+    return `${items.length} selected`;
+  };
+
+  const getBrowserLabel = () => {
+    const browser = BROWSER_OPTIONS.find(b => b.command === local.defaultBrowser);
+    return browser?.label || 'Not set';
+  };
+
+  const Section = ({
+    id,
+    icon,
+    title,
+    summary,
+    children
+  }: {
+    id: SectionKey;
+    icon: string;
+    title: string;
+    summary: string;
+    children: React.ReactNode;
+  }) => {
+    const isOpen = expanded === id;
+    return (
+      <div style={{
+        borderRadius: 10,
+        overflow: 'hidden',
+        marginBottom: 8,
+        background: isOpen ? 'rgba(255,255,255,0.03)' : 'transparent',
+        border: isOpen ? '1px solid rgba(255,255,255,0.1)' : '1px solid transparent',
+      }}>
+        <div
+          onClick={() => toggleSection(id)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 14px',
+            cursor: 'pointer',
+            background: isOpen ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.02)',
+            borderRadius: isOpen ? 0 : 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 16 }}>{icon}</span>
+            <span style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>{title}</span>
           </div>
-        );
-      })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: '#64748b', fontSize: 12 }}>{summary}</span>
+            <span style={{
+              color: '#64748b',
+              fontSize: 12,
+              transform: isOpen ? 'rotate(180deg)' : 'rotate(0)',
+              transition: 'transform 0.2s',
+            }}>▼</span>
+          </div>
+        </div>
+        {isOpen && (
+          <div style={{ padding: '12px 14px', paddingTop: 0 }}>
+            {children}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const OptionChip = ({
+    selected,
+    onClick,
+    icon,
+    label
+  }: {
+    selected: boolean;
+    onClick: () => void;
+    icon?: string;
+    label: string;
+  }) => (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 10px',
+        background: selected ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.05)',
+        border: selected ? '1px solid rgba(59,130,246,0.4)' : '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 6,
+        cursor: 'pointer',
+        fontSize: 12,
+        color: selected ? '#fff' : '#94a3b8',
+      }}
+    >
+      {icon && <span>{icon}</span>}
+      <span>{label}</span>
+      {selected && <span style={{ fontSize: 10 }}>✓</span>}
     </div>
   );
 
-  const canSave = (local.mediaPlayers?.length || 0) > 0 ||
-    (local.messagesApps?.length || 0) > 0 ||
-    (local.emailApps?.length || 0) > 0 ||
-    (local.calendarApps?.length || 0) > 0;
-
   return (
-    <div style={styles.overlay} onClick={(e) => !isFirstRun && e.target === e.currentTarget && onClose()}>
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <div>
-            <h2 style={styles.title}>
-              {isFirstRun ? '👋 Welcome! Set up your apps' : '⚙️ Settings'}
-            </h2>
-            {isFirstRun && (
-              <p style={styles.subtitle}>Select the apps you want quick access to</p>
+    <>
+      <style>{`
+        @keyframes settingsFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes settingsSlideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
+
+      <div
+        onClick={(e) => !isFirstRun && e.target === e.currentTarget && onClose()}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(6px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          animation: 'settingsFadeIn 0.15s',
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: '#1e1e2e',
+            borderRadius: 14,
+            width: 420,
+            maxHeight: '85vh',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+            animation: 'settingsSlideUp 0.2s',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '16px 18px',
+            borderBottom: '1px solid rgba(255,255,255,0.1)',
+          }}>
+            <span style={{ color: '#fff', fontSize: 16, fontWeight: 600 }}>
+              {isFirstRun ? 'Welcome! Set up your apps' : 'Settings'}
+            </span>
+            {!isFirstRun && (
+              <button
+                onClick={onClose}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#64748b',
+                  fontSize: 20,
+                  cursor: 'pointer',
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >×</button>
             )}
           </div>
-          {!isFirstRun && (
-            <button style={styles.closeBtn} onClick={onClose}>✕</button>
-          )}
-        </div>
 
-        <div style={styles.body}>
-          {/* Browser */}
-          <div style={styles.section}>
-            <div style={styles.sectionTitle}>🌐 Default Browser</div>
-            <div style={styles.optionGrid}>
-              {BROWSER_OPTIONS.map((opt) => (
-                <div
-                  key={opt.id}
-                  onClick={() => setLocal(prev => ({ ...prev, defaultBrowser: opt.command }))}
-                  style={{
-                    ...styles.option,
-                    ...(local.defaultBrowser === opt.command ? styles.optionSelected : {}),
-                  }}
-                >
-                  <span>{opt.label}</span>
+          {/* Body - Collapsible Sections */}
+          <div style={{ padding: 14, overflowY: 'auto', flex: 1 }}>
+            {/* Browser */}
+            <Section id="browser" icon="🌐" title="Browser" summary={getBrowserLabel()}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {BROWSER_OPTIONS.map((opt) => (
+                  <OptionChip
+                    key={opt.id}
+                    selected={local.defaultBrowser === opt.command}
+                    onClick={() => setLocal(prev => ({ ...prev, defaultBrowser: opt.command }))}
+                    label={opt.label}
+                  />
+                ))}
+              </div>
+            </Section>
+
+            {/* Media */}
+            <Section id="media" icon="🎵" title="Music" summary={getSummary(local.mediaPlayers, MEDIA_OPTIONS)}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {MEDIA_OPTIONS.map((opt) => (
+                  <OptionChip
+                    key={opt.id}
+                    selected={(local.mediaPlayers || []).includes(opt.id)}
+                    onClick={() => toggleMulti('mediaPlayers', opt.id)}
+                    icon={opt.icon}
+                    label={opt.label}
+                  />
+                ))}
+              </div>
+            </Section>
+
+            {/* Messages */}
+            <Section id="messages" icon="💬" title="Messages" summary={getSummary(local.messagesApps, MESSAGES_OPTIONS)}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {MESSAGES_OPTIONS.map((opt) => (
+                  <OptionChip
+                    key={opt.id}
+                    selected={(local.messagesApps || []).includes(opt.id)}
+                    onClick={() => toggleMulti('messagesApps', opt.id)}
+                    icon={opt.icon}
+                    label={opt.label}
+                  />
+                ))}
+              </div>
+            </Section>
+
+            {/* Email */}
+            <Section id="email" icon="📧" title="Email" summary={getSummary(local.emailApps, EMAIL_OPTIONS)}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {EMAIL_OPTIONS.map((opt) => (
+                  <OptionChip
+                    key={opt.id}
+                    selected={(local.emailApps || []).includes(opt.id)}
+                    onClick={() => toggleMulti('emailApps', opt.id)}
+                    icon={opt.icon}
+                    label={opt.label}
+                  />
+                ))}
+              </div>
+            </Section>
+
+            {/* Calendar */}
+            <Section id="calendar" icon="📅" title="Calendar" summary={getSummary(local.calendarApps, CALENDAR_OPTIONS)}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {CALENDAR_OPTIONS.map((opt) => (
+                  <OptionChip
+                    key={opt.id}
+                    selected={(local.calendarApps || []).includes(opt.id)}
+                    onClick={() => toggleMulti('calendarApps', opt.id)}
+                    icon={opt.icon}
+                    label={opt.label}
+                  />
+                ))}
+              </div>
+            </Section>
+
+            {/* Display */}
+            <Section id="display" icon="🖥️" title="Display" summary={(local.showTimeTracking ?? true) ? 'Time tracking on' : 'Time tracking off'}>
+              <div
+                onClick={() => setLocal(prev => ({ ...prev, showTimeTracking: !(prev.showTimeTracking ?? true) }))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 0',
+                  cursor: 'pointer',
+                  marginTop: 4,
+                }}
+              >
+                <span style={{ color: '#94a3b8', fontSize: 13 }}>Show time tracking</span>
+                <div style={{
+                  width: 36,
+                  height: 20,
+                  borderRadius: 10,
+                  background: (local.showTimeTracking ?? true) ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                  position: 'relative',
+                  transition: 'all 0.2s',
+                }}>
+                  <div style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: (local.showTimeTracking ?? true) ? 18 : 2,
+                    width: 16,
+                    height: 16,
+                    borderRadius: '50%',
+                    background: '#fff',
+                    transition: 'all 0.2s',
+                  }} />
                 </div>
-              ))}
-            </div>
+              </div>
+            </Section>
           </div>
 
-          {/* Media Player - Multi-select */}
-          <div style={styles.section}>
-            <div style={styles.sectionTitle}>🎵 Music & Media</div>
-            <div style={styles.hint}>Select all the services you use</div>
-            {renderMultiSelect(
-              MEDIA_OPTIONS,
-              local.mediaPlayers || [],
-              'mediaPlayers',
-              '#ec4899'
+          {/* Footer */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 10,
+            padding: '14px 18px',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+          }}>
+            {!isFirstRun && (
+              <button
+                onClick={onClose}
+                style={{
+                  padding: '8px 18px',
+                  background: 'rgba(255,255,255,0.1)',
+                  border: 'none',
+                  borderRadius: 8,
+                  color: '#94a3b8',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >Cancel</button>
             )}
+            <button
+              onClick={handleSave}
+              style={{
+                padding: '8px 18px',
+                background: '#6366f1',
+                border: 'none',
+                borderRadius: 8,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >{isFirstRun ? 'Get Started' : 'Save'}</button>
           </div>
-
-          {/* Messages - Multi-select */}
-          <div style={styles.section}>
-            <div style={styles.sectionTitle}>💬 Messages</div>
-            <div style={styles.hint}>Select all the messaging apps you use</div>
-            {renderMultiSelect(
-              MESSAGES_OPTIONS,
-              local.messagesApps || [],
-              'messagesApps',
-              '#22c55e'
-            )}
-          </div>
-
-          {/* Email - Multi-select */}
-          <div style={styles.section}>
-            <div style={styles.sectionTitle}>📧 Email</div>
-            <div style={styles.hint}>Select all your email accounts</div>
-            {renderMultiSelect(
-              EMAIL_OPTIONS,
-              local.emailApps || [],
-              'emailApps',
-              '#f59e0b'
-            )}
-          </div>
-
-          {/* Calendar - Multi-select */}
-          <div style={styles.section}>
-            <div style={styles.sectionTitle}>📅 Calendar & Tasks</div>
-            <div style={styles.hint}>Select your calendar and task apps</div>
-            {renderMultiSelect(
-              CALENDAR_OPTIONS,
-              local.calendarApps || [],
-              'calendarApps',
-              '#8b5cf6'
-            )}
-          </div>
-        </div>
-
-        <div style={styles.footer}>
-          {!isFirstRun && (
-            <button style={{ ...styles.btn, ...styles.btnSecondary }} onClick={onClose}>
-              Cancel
-            </button>
-          )}
-          <button
-            style={{
-              ...styles.btn,
-              ...styles.btnPrimary,
-              opacity: canSave ? 1 : 0.5,
-            }}
-            onClick={handleSave}
-            disabled={!canSave && isFirstRun}
-          >
-            {isFirstRun ? 'Get Started' : 'Save'}
-          </button>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

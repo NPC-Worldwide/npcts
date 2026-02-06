@@ -3,7 +3,7 @@
  */
 
 export { Wall, WALL_STYLES } from './Wall';
-export { Door, DoorArrow } from './Door';
+export { Door, DoorArrow, type OnlineRoomInfo } from './Door';
 export {
   FloorPattern,
   TessellatedFloor,
@@ -102,3 +102,7 @@ export {
   type UsageLimits,
   type UsageData,  // Full version with openCount and limits
 } from './ControlPanel';
+export {
+  TimeStatsPopup,
+  type TimeStatsPopupProps,
+} from './TimeStatsPopup';

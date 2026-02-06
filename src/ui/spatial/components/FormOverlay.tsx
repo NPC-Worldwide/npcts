@@ -76,24 +76,25 @@ const styles: Record<string, React.CSSProperties> = {
   overlay: {
     position: 'fixed',
     inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     backdropFilter: 'blur(8px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-    animation: 'fadeIn 0.2s ease-out',
+    animation: 'fadeIn 0.15s ease-out',
   },
   container: {
-    backgroundColor: '#1e1e2e',
-    borderRadius: 20,
+    position: 'relative' as const,
+    backgroundColor: '#0f172a',
+    borderRadius: 12,
     padding: 0,
     maxWidth: 520,
     width: '90%',
     maxHeight: '85vh',
     overflow: 'hidden',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1)',
-    animation: 'slideUp 0.3s ease-out',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08)',
+    animation: 'slideUp 0.25s ease-out',
     display: 'flex',
     flexDirection: 'column' as const,
   },
@@ -101,60 +102,60 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '24px 28px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '20px 24px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
   },
   titleContainer: {
     display: 'flex',
     alignItems: 'center',
-    gap: 14,
+    gap: 12,
   },
   titleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 24,
+    fontSize: 20,
   },
   title: {
     margin: 0,
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: 700,
+    color: '#f1f5f9',
+    fontSize: 18,
+    fontWeight: 600,
   },
   subtitle: {
-    margin: '4px 0 0 0',
-    color: '#9ca3af',
-    fontSize: 13,
+    margin: '2px 0 0 0',
+    color: '#64748b',
+    fontSize: 12,
   },
   closeButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: 'none',
-    borderRadius: 10,
-    width: 40,
-    height: 40,
+    background: 'rgba(255, 255, 255, 0.05)',
+    border: '1px solid rgba(255, 255, 255, 0.08)',
+    borderRadius: 8,
+    width: 36,
+    height: 36,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
-    color: '#9ca3af',
-    fontSize: 22,
-    transition: 'all 0.2s',
+    color: '#64748b',
+    fontSize: 18,
+    transition: 'all 0.15s',
   },
   body: {
-    padding: '24px 28px',
+    padding: '20px 24px',
     overflowY: 'auto' as const,
     flex: 1,
   },
   footer: {
-    padding: '20px 28px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '16px 24px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
     display: 'flex',
     justifyContent: 'flex-end',
-    gap: 12,
+    gap: 10,
   },
   // Form elements
   field: {
@@ -173,14 +174,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   input: {
     width: '100%',
-    padding: '12px 16px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    borderRadius: 10,
-    color: '#fff',
-    fontSize: 14,
+    padding: '10px 14px',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: 8,
+    color: '#f1f5f9',
+    fontSize: 13,
     outline: 'none',
-    transition: 'all 0.2s',
+    transition: 'all 0.15s',
     boxSizing: 'border-box' as const,
   },
   fileInput: {
@@ -190,63 +191,63 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    padding: '14px 20px',
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    border: '2px dashed rgba(99, 102, 241, 0.3)',
-    borderRadius: 10,
-    color: '#818cf8',
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  button: {
-    padding: '12px 24px',
-    borderRadius: 10,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    border: 'none',
-  },
-  buttonPrimary: {
-    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-    color: '#fff',
-  },
-  buttonSecondary: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: '#e5e7eb',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-  },
-  buttonDanger: {
-    background: 'rgba(239, 68, 68, 0.2)',
-    color: '#f87171',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-  },
-  tabs: {
-    display: 'flex',
-    gap: 4,
-    padding: '4px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    marginBottom: 24,
-  },
-  tab: {
-    flex: 1,
-    padding: '10px 16px',
-    backgroundColor: 'transparent',
-    border: 'none',
+    gap: 8,
+    padding: '12px 16px',
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    border: '1px dashed rgba(59, 130, 246, 0.25)',
     borderRadius: 8,
-    color: '#9ca3af',
+    color: '#60a5fa',
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
-    transition: 'all 0.2s',
+    transition: 'all 0.15s',
+  },
+  button: {
+    padding: '10px 20px',
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    border: 'none',
+  },
+  buttonPrimary: {
+    background: '#3b82f6',
+    color: '#fff',
+  },
+  buttonSecondary: {
+    background: 'rgba(255, 255, 255, 0.05)',
+    color: '#94a3b8',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+  },
+  buttonDanger: {
+    background: 'rgba(239, 68, 68, 0.15)',
+    color: '#f87171',
+    border: '1px solid rgba(239, 68, 68, 0.2)',
+  },
+  tabs: {
+    display: 'flex',
+    gap: 2,
+    padding: '3px',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    padding: '8px 14px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderRadius: 6,
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'all 0.15s',
   },
   tabActive: {
-    backgroundColor: 'rgba(99, 102, 241, 0.2)',
-    color: '#818cf8',
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    color: '#60a5fa',
   },
   row: {
     display: 'grid',
@@ -256,18 +257,18 @@ const styles: Record<string, React.CSSProperties> = {
   commandList: {
     maxHeight: 150,
     overflowY: 'auto' as const,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    borderRadius: 10,
-    padding: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    border: '1px solid rgba(255, 255, 255, 0.06)',
+    borderRadius: 8,
+    padding: 6,
   },
   commandItem: {
-    padding: '8px 12px',
-    borderRadius: 6,
-    color: '#e5e7eb',
-    fontSize: 13,
+    padding: '7px 10px',
+    borderRadius: 4,
+    color: '#cbd5e1',
+    fontSize: 12,
     cursor: 'pointer',
-    transition: 'all 0.2s',
+    transition: 'all 0.15s',
   },
 };
 
@@ -326,33 +327,58 @@ export const FormOverlay: React.FC<FormOverlayProps> = ({
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
-          <div style={styles.header}>
-            <div style={styles.titleContainer}>
-              <div style={styles.titleIcon}>{icon}</div>
-              <div>
-                <h2 style={styles.title}>{title}</h2>
-                {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
+          {/* Header - only if title provided */}
+          {title ? (
+            <div style={styles.header}>
+              <div style={styles.titleContainer}>
+                <div style={styles.titleIcon}>{icon}</div>
+                <div>
+                  <h2 style={styles.title}>{title}</h2>
+                  {subtitle && <p style={styles.subtitle}>{subtitle}</p>}
+                </div>
               </div>
+              <button
+                style={styles.closeButton}
+                onClick={onClose}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                  e.currentTarget.style.color = '#fff';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                  e.currentTarget.style.color = '#9ca3af';
+                }}
+              >
+                ×
+              </button>
             </div>
+          ) : (
+            /* Just X button floating in corner */
             <button
-              style={styles.closeButton}
               onClick={onClose}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                e.currentTarget.style.color = '#fff';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                e.currentTarget.style.color = '#9ca3af';
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                background: 'none',
+                border: 'none',
+                color: '#64748b',
+                fontSize: 18,
+                cursor: 'pointer',
+                padding: 4,
+                lineHeight: 1,
+                zIndex: 1,
               }}
             >
               ×
             </button>
-          </div>
+          )}
 
           {/* Body */}
-          <div style={styles.body}>{children}</div>
+          <div style={{
+            ...styles.body,
+            ...(!title ? { paddingTop: 28 } : {}),
+          }}>{children}</div>
         </div>
       </div>
     </>

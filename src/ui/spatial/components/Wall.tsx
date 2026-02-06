@@ -89,6 +89,10 @@ export const Wall: React.FC<WallProps> = ({
   const wallStyle = useMemo(() => {
     const styleConfig = WALL_STYLES[wall.style || 'brick'];
 
+    // Perspective z-ordering: top wall (10) < side walls (11) < bottom wall (12)
+    const wallZ = wall.orientation === 'vertical' ? 11
+      : (wall.y > 0 ? 12 : 10);
+
     const baseStyle: React.CSSProperties = {
       position: 'absolute',
       left: wall.x,
@@ -100,7 +104,7 @@ export const Wall: React.FC<WallProps> = ({
       boxShadow: styleConfig.boxShadow,
       borderWidth: wall.orientation === 'horizontal' ? '0 0 3px 0' : '0 3px 0 0',
       borderStyle: 'solid',
-      zIndex: 10,
+      zIndex: wallZ,
       pointerEvents: onClick ? 'auto' : 'none',
       cursor: onClick ? 'pointer' : 'default',
       outline: selected ? '2px solid #3b82f6' : 'none',

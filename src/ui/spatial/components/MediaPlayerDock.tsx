@@ -12,6 +12,7 @@ import {
   EMAIL_OPTIONS,
   CALENDAR_OPTIONS,
 } from './SettingsOverlay';
+import { TimeStatsPopup } from './TimeStatsPopup';
 
 // =============================================================================
 // Types
@@ -37,8 +38,11 @@ export interface MediaPlayerDockProps {
   onEditRoom?: () => void;
   currentRoom?: string;
   // Time tracking
-  roomTime?: number; // seconds in current room
-  totalTime?: number; // total seconds today
+  sessionTime?: number; // seconds in current session
+  roomTimeDaily?: number;
+  roomTimeWeekly?: number;
+  roomTimeMonthly?: number;
+  showTimeTracking?: boolean;
 }
 
 interface ServiceItem {
@@ -89,13 +93,14 @@ export const TASKBAR_HEIGHT = 36;
 // Component
 // =============================================================================
 
-// Format seconds to human readable time
+// Format seconds to hours:minutes (no seconds)
 const formatTime = (seconds: number): string => {
-  if (seconds < 60) return `${seconds}s`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
   const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
-  return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  if (hours > 0) {
+    return `${hours}h${mins > 0 ? mins + 'm' : ''}`;
+  }
+  return `${mins}m`;
 };
 
 // Format seconds to MM:SS for media timeline
@@ -123,8 +128,11 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
   onOpenStats,
   onEditRoom,
   currentRoom,
-  roomTime = 0,
-  totalTime = 0,
+  sessionTime = 0,
+  roomTimeDaily = 0,
+  roomTimeWeekly = 0,
+  roomTimeMonthly = 0,
+  showTimeTracking = true,
 }) => {
   const [activeService, setActiveService] = useState<ServiceItem | null>(null);
   const [panelVisible, setPanelVisible] = useState(true); // Controls panel visibility (keeps webview alive)
@@ -138,6 +146,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
   const [trackDuration, setTrackDuration] = useState(0);
   const [trackTitle, setTrackTitle] = useState('');
   const [trackArtist, setTrackArtist] = useState('');
+  const [showTimeStats, setShowTimeStats] = useState(false);
   const webviewRef = useRef<HTMLWebViewElement | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -379,29 +388,21 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
   const panelWidth = panelSize === 'large' ? 900 : 450;
   const panelHeight = panelSize === 'large' ? 650 : 400;
 
-  // Button style helper
+  // Button style helper - Incognide-inspired
   const btnStyle = (active = false, hovered = false): React.CSSProperties => ({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    padding: '4px 8px',
-    background: active ? 'rgba(255,255,255,0.2)' : hovered ? 'rgba(255,255,255,0.1)' : 'transparent',
-    border: 'none',
-    borderRadius: 4,
-    color: active ? '#fff' : '#ccc',
-    fontSize: 12,
+    padding: '4px 10px',
+    background: active ? 'rgba(59,130,246,0.25)' : hovered ? 'rgba(255,255,255,0.07)' : 'transparent',
+    border: active ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+    borderRadius: 6,
+    color: active ? '#f1f5f9' : '#94a3b8',
+    fontSize: 11,
     cursor: 'pointer',
-    transition: 'all 0.15s',
+    transition: 'all 0.2s ease',
   });
-
-  const kbdStyle: React.CSSProperties = {
-    fontSize: 9,
-    padding: '1px 4px',
-    background: 'rgba(255,255,255,0.1)',
-    borderRadius: 3,
-    marginLeft: 4,
-  };
 
   return (
     <>
@@ -413,14 +414,14 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
           right: 8,
           width: panelWidth,
           height: panelHeight,
-          backgroundColor: '#1a1a1a',
-          border: '2px solid #5a4030',
-          borderRadius: 8,
+          backgroundColor: '#0f172a',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 10,
           overflow: 'hidden',
           zIndex: 99,
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05)',
           // When minimized: move offscreen but keep fully rendered for webview to stay active
           transform: panelVisible ? 'none' : 'translateX(calc(100% + 100px))',
           opacity: panelVisible ? 1 : 0,
@@ -432,32 +433,32 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '6px 10px',
-            backgroundColor: '#2a2a2a',
-            borderBottom: '1px solid #444',
+            padding: '8px 12px',
+            backgroundColor: 'rgba(255,255,255,0.03)',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
             flexShrink: 0,
           }}>
-            <span style={{ color: '#fff', fontSize: 12, fontWeight: 500 }}>
+            <span style={{ color: '#f1f5f9', fontSize: 12, fontWeight: 500 }}>
               {activeService.icon} {activeService.label}
             </span>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 2 }}>
               <button
                 onClick={() => setPanelSize(panelSize === 'normal' ? 'large' : 'normal')}
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}
+                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 12, padding: '4px 6px', borderRadius: 4, transition: 'color 0.15s' }}
                 title="Resize"
               >
                 {panelSize === 'normal' ? '⤢' : '⤡'}
               </button>
               <button
                 onClick={handleClosePanel}
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}
+                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 12, padding: '4px 6px', borderRadius: 4, transition: 'color 0.15s' }}
                 title="Minimize (keeps playing)"
               >
                 ─
               </button>
               <button
                 onClick={handleStopService}
-                style={{ background: 'none', border: 'none', color: '#888', cursor: 'pointer', fontSize: 12, padding: '2px 6px' }}
+                style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: 12, padding: '4px 6px', borderRadius: 4, transition: 'color 0.15s' }}
                 title="Stop & close"
               >
                 ✕
@@ -468,8 +469,8 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
           {/* Media Control Bar - track info, controls, and timeline */}
           <div style={{
             padding: '8px 12px',
-            backgroundColor: '#1f1f1f',
-            borderBottom: '1px solid #333',
+            backgroundColor: 'rgba(255,255,255,0.02)',
+            borderBottom: '1px solid rgba(255,255,255,0.06)',
             flexShrink: 0,
           }}>
             {/* Track info and controls row */}
@@ -632,13 +633,13 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
           position: 'fixed',
           bottom: TASKBAR_HEIGHT + 8,
           right: 8,
-          backgroundColor: '#2a2a2a',
-          border: '1px solid #5a4030',
+          backgroundColor: '#0f172a',
+          border: '1px solid rgba(255,255,255,0.1)',
           borderRadius: 8,
-          padding: 8,
+          padding: 6,
           zIndex: 101,
-          minWidth: 150,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+          minWidth: 160,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05)',
         }}>
           {categories.find(c => c.key === expandedCategory)?.items.map((service) => (
             <div
@@ -669,11 +670,11 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
         width: '100%',
         display: 'flex',
         alignItems: 'center',
-        padding: collapsed ? '2px 8px' : '0 12px 2px 8px',
+        padding: collapsed ? '2px 8px' : '0 12px',
         boxSizing: 'border-box',
-        background: 'linear-gradient(to top, rgba(40,30,20,0.98) 0%, rgba(60,45,30,0.95) 100%)',
-        borderTop: '1px solid #6a5040',
-        transition: 'height 0.15s ease',
+        background: 'rgba(15,23,42,0.97)',
+        borderTop: '1px solid rgba(255,255,255,0.08)',
+        transition: 'height 0.2s ease',
         overflow: 'hidden',
         flexShrink: 0,
       }}>
@@ -692,7 +693,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
                 <span>Keys</span>
               </button>
 
-              <div style={{ width: 1, height: 20, backgroundColor: '#5a4030', margin: '0 4px' }} />
+              <div style={{ width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.08)', margin: '0 4px' }} />
 
               <button
                 onClick={onAddApp}
@@ -702,7 +703,6 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
                 title="Add App (E)"
               >
                 <span>📦</span>
-                <span style={kbdStyle}>e</span>
               </button>
 
               <button
@@ -710,10 +710,9 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
                 onMouseEnter={() => setHoveredItem('addroom')}
                 onMouseLeave={() => setHoveredItem(null)}
                 style={btnStyle(false, hoveredItem === 'addroom')}
-                title="Add Room (r)"
+                title="Add Room (R)"
               >
                 <span>🚪</span>
-                <span style={kbdStyle}>r</span>
               </button>
 
               <button
@@ -721,30 +720,35 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
                 onMouseEnter={() => setHoveredItem('edit')}
                 onMouseLeave={() => setHoveredItem(null)}
                 style={btnStyle(editMode, hoveredItem === 'edit')}
-                title="Edit Mode (f)"
+                title="Edit Mode (F)"
               >
                 <span>✏️</span>
-                <span style={kbdStyle}>f</span>
               </button>
             </div>
 
             {/* CENTER SECTION: Room & Time & Tools */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              {/* Room name and time */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {/* Room name and time - compact */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                 {currentRoom && (
                   <span
                     onClick={onEditRoom}
-                    style={{ color: '#ccc', fontSize: 11, cursor: 'pointer' }}
+                    style={{ color: '#94a3b8', fontSize: 10, cursor: 'pointer' }}
                     title="Edit Room"
                   >{currentRoom}</span>
                 )}
-                <span style={{ color: '#666', fontSize: 10 }}>
-                  {formatTime(roomTime)} | {formatTime(totalTime)} total
-                </span>
+                {showTimeTracking && (
+                  <span
+                    onClick={() => setShowTimeStats(true)}
+                    style={{ color: '#60a5fa', fontSize: 9, cursor: 'pointer' }}
+                    title="Click for time stats"
+                  >
+                    {formatTime(sessionTime)}
+                  </span>
+                )}
               </div>
 
-              <div style={{ width: 1, height: 16, backgroundColor: '#5a4030', margin: '0 4px' }} />
+              <div style={{ width: 1, height: 12, backgroundColor: 'rgba(255,255,255,0.08)', margin: '0 4px' }} />
 
               {/* Stats button */}
               <button
@@ -895,7 +899,7 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
                     style={{ width: 60, height: 4, accentColor: activeService?.id === 'spotify' ? '#1db954' : '#ff0000', cursor: 'pointer', margin: '0 4px' }}
                     title={`Volume: ${volume}%`}
                   />
-                  <div style={{ width: 1, height: 20, backgroundColor: '#5a4030', margin: '0 4px' }} />
+                  <div style={{ width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.08)', margin: '0 4px' }} />
                 </>
               )}
 
@@ -921,10 +925,10 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
               })}
 
               {categories.length === 0 && (
-                <span style={{ color: '#666', fontSize: 11 }}>No apps configured</span>
+                <span style={{ color: '#475569', fontSize: 10 }}>No apps configured</span>
               )}
 
-              <div style={{ width: 1, height: 20, backgroundColor: '#5a4030', margin: '0 4px' }} />
+              <div style={{ width: 1, height: 16, backgroundColor: 'rgba(255,255,255,0.08)', margin: '0 4px' }} />
 
               {/* Collapse toggle */}
               <button
@@ -953,6 +957,17 @@ export const MediaPlayerDock: React.FC<MediaPlayerDockProps> = ({
           </button>
         )}
       </div>
+
+      {/* Time Stats Popup */}
+      <TimeStatsPopup
+        visible={showTimeStats}
+        onClose={() => setShowTimeStats(false)}
+        roomName={currentRoom || 'Current Room'}
+        sessionTime={sessionTime}
+        dailyTime={roomTimeDaily}
+        weeklyTime={roomTimeWeekly}
+        monthlyTime={roomTimeMonthly}
+      />
     </>
   );
 };

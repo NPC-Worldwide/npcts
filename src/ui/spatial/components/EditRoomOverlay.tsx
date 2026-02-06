@@ -1,15 +1,9 @@
 /**
- * EditRoomOverlay Component
- *
- * Allows editing existing room properties like name and background image.
+ * EditRoomOverlay Component - Compact Version
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import { FloorTilePicker, type FloorTileOption } from './FloorTilePicker';
-
-// =============================================================================
-// Types
-// =============================================================================
 
 export interface RoomData {
   name: string;
@@ -18,6 +12,7 @@ export interface RoomData {
   floorTileSize?: number;
   floorPattern?: string;
   floorPatternSize?: string;
+  outside?: boolean;
 }
 
 export interface EditRoomOverlayProps {
@@ -29,6 +24,7 @@ export interface EditRoomOverlayProps {
   floorTileSize?: number;
   floorPattern?: string;
   floorPatternSize?: string;
+  outside?: boolean;
   onSave: (
     oldName: string,
     newName: string,
@@ -36,217 +32,13 @@ export interface EditRoomOverlayProps {
     floorTile?: boolean,
     floorTileSize?: number,
     floorPattern?: string,
-    floorPatternSize?: string
+    floorPatternSize?: string,
+    outside?: boolean
   ) => void;
   onDelete?: (roomName: string) => void;
   onUploadImage?: (file: File) => Promise<string>;
   canDelete?: boolean;
 }
-
-// =============================================================================
-// Styles
-// =============================================================================
-
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    backdropFilter: 'blur(8px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-    animation: 'fadeIn 0.2s ease-out',
-  },
-  container: {
-    backgroundColor: '#1e1e2e',
-    borderRadius: 20,
-    padding: 0,
-    maxWidth: 480,
-    width: '90%',
-    maxHeight: '85vh',
-    overflow: 'hidden',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1)',
-    animation: 'slideUp 0.3s ease-out',
-    display: 'flex',
-    flexDirection: 'column' as const,
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '24px 28px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-  },
-  titleContainer: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 14,
-  },
-  titleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 24,
-  },
-  title: {
-    margin: 0,
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: 700,
-  },
-  subtitle: {
-    margin: '4px 0 0 0',
-    color: '#9ca3af',
-    fontSize: 13,
-  },
-  closeButton: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    border: 'none',
-    borderRadius: 10,
-    width: 40,
-    height: 40,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    color: '#9ca3af',
-    fontSize: 22,
-    transition: 'all 0.2s',
-  },
-  body: {
-    padding: '24px 28px',
-    overflowY: 'auto' as const,
-    flex: 1,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    color: '#e5e7eb',
-    fontSize: 13,
-    fontWeight: 600,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  input: {
-    width: '100%',
-    padding: '12px 16px',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    borderRadius: 10,
-    color: '#fff',
-    fontSize: 14,
-    outline: 'none',
-    boxSizing: 'border-box' as const,
-  },
-  imagePreview: {
-    width: '100%',
-    height: 150,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    borderRadius: 12,
-    overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  imagePreviewImg: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover' as const,
-  },
-  imagePreviewPlaceholder: {
-    color: '#6b7280',
-    fontSize: 14,
-  },
-  fileInputContainer: {
-    position: 'relative' as const,
-  },
-  fileInputLabel: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '10px 16px',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    borderRadius: 10,
-    color: '#e5e7eb',
-    fontSize: 14,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  fileInput: {
-    position: 'absolute' as const,
-    width: 0,
-    height: 0,
-    opacity: 0,
-  },
-  dangerZone: {
-    padding: 16,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-    borderRadius: 12,
-  },
-  dangerTitle: {
-    color: '#ef4444',
-    fontSize: 14,
-    fontWeight: 600,
-    marginBottom: 8,
-  },
-  dangerDescription: {
-    color: '#9ca3af',
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  deleteButton: {
-    padding: '10px 16px',
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    border: '1px solid rgba(239, 68, 68, 0.4)',
-    borderRadius: 8,
-    color: '#ef4444',
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  footer: {
-    padding: '20px 28px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 12,
-  },
-  button: {
-    padding: '12px 24px',
-    borderRadius: 10,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    border: 'none',
-  },
-  buttonPrimary: {
-    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-    color: '#fff',
-  },
-  buttonSecondary: {
-    background: 'rgba(255, 255, 255, 0.1)',
-    color: '#e5e7eb',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-  },
-};
-
-// =============================================================================
-// EditRoomOverlay Component
-// =============================================================================
 
 export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
   visible,
@@ -257,6 +49,7 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
   floorTileSize = 100,
   floorPattern,
   floorPatternSize,
+  outside = false,
   onSave,
   onDelete,
   onUploadImage,
@@ -268,8 +61,8 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
   const [newFloorTileSize, setNewFloorTileSize] = useState(floorTileSize);
   const [newFloorPattern, setNewFloorPattern] = useState(floorPattern || '');
   const [newFloorPatternSize, setNewFloorPatternSize] = useState(floorPatternSize || '');
+  const [newOutside, setNewOutside] = useState(outside);
   const [isUploading, setIsUploading] = useState(false);
-  const [showCustomUpload, setShowCustomUpload] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -279,15 +72,13 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
     setNewFloorTileSize(floorTileSize);
     setNewFloorPattern(floorPattern || '');
     setNewFloorPatternSize(floorPatternSize || '');
-  }, [roomName, backgroundImage, floorTile, floorTileSize, floorPattern, floorPatternSize, visible]);
+    setNewOutside(outside);
+  }, [roomName, backgroundImage, floorTile, floorTileSize, floorPattern, floorPatternSize, outside, visible]);
 
-  // Close on Escape key
   useEffect(() => {
     if (!visible) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
+      if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -295,17 +86,9 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
 
   if (!visible) return null;
 
-  // Close on backdrop click
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !onUploadImage) return;
-
     setIsUploading(true);
     try {
       const uploadedUrl = await onUploadImage(file);
@@ -322,49 +105,28 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
       alert('Room name is required');
       return;
     }
-    onSave(
-      roomName,
-      newName.trim(),
-      newBackgroundImage || undefined,
-      newFloorTile,
-      newFloorTileSize,
-      newFloorPattern || undefined,
-      newFloorPatternSize || undefined
-    );
+    onSave(roomName, newName.trim(), newBackgroundImage || undefined, newFloorTile, newFloorTileSize, newFloorPattern || undefined, newFloorPatternSize || undefined, newOutside);
     onClose();
   };
 
   const handleTileSelect = (tile: FloorTileOption) => {
     if (tile.type === 'pattern') {
-      // It's a procedural pattern
       setNewBackgroundImage('');
       setNewFloorPattern(tile.pattern || '');
       setNewFloorPatternSize(tile.patternSize || '');
       setNewFloorTile(false);
     } else {
-      // It's an image tile
       setNewBackgroundImage(tile.url || '');
       setNewFloorPattern('');
       setNewFloorPatternSize('');
-      setNewFloorTile(true); // Auto-enable tiling for built-in tiles
+      setNewFloorTile(true);
       setNewFloorTileSize(100);
     }
   };
 
-  const handleCustomUpload = () => {
-    setShowCustomUpload(true);
-    fileInputRef.current?.click();
-  };
-
   const handleDelete = () => {
-    if (onDelete && confirm(`Are you sure you want to delete "${roomName}"? This cannot be undone.`)) {
+    if (onDelete && confirm(`Delete "${roomName}"? This cannot be undone.`)) {
       onDelete(roomName);
-      onClose();
-    }
-  };
-
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
       onClose();
     }
   };
@@ -372,98 +134,129 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
   return (
     <>
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideUp {
-          from { opacity: 0; transform: translateY(20px) scale(0.95); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
+        @keyframes editRoomFadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes editRoomSlideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
 
-      <div style={styles.overlay} onClick={handleOverlayClick}>
-        <div style={styles.container} onClick={(e) => e.stopPropagation()}>
-          {/* Header */}
-          <div style={styles.header}>
-            <div style={styles.titleContainer}>
-              <div style={styles.titleIcon}>🏠</div>
-              <div>
-                <h2 style={styles.title}>Edit Room</h2>
-                <p style={styles.subtitle}>Modify room properties</p>
-              </div>
-            </div>
+      <div
+        onClick={(e) => e.target === e.currentTarget && onClose()}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          animation: 'editRoomFadeIn 0.15s',
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            backgroundColor: '#1e1e2e',
+            borderRadius: 12,
+            width: 340,
+            maxHeight: '80vh',
+            overflow: 'hidden',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+            animation: 'editRoomSlideUp 0.2s',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {/* Header - just close button */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            padding: '10px 12px 0',
+          }}>
             <button
-              style={styles.closeButton}
               onClick={onClose}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                e.currentTarget.style.color = '#fff';
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#64748b',
+                fontSize: 18,
+                cursor: 'pointer',
+                padding: 0,
+                lineHeight: 1,
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-                e.currentTarget.style.color = '#9ca3af';
-              }}
-            >
-              ×
-            </button>
+            >×</button>
           </div>
 
           {/* Body */}
-          <div style={styles.body}>
+          <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
             {/* Room Name */}
-            <div style={styles.section}>
-              <div style={styles.sectionTitle}>Room Name</div>
-              <input
-                type="text"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Enter room name"
-                style={styles.input}
-                onKeyDown={(e) => e.stopPropagation()}
-                maxLength={50}
-              />
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Room name"
+              onKeyDown={(e) => e.stopPropagation()}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                backgroundColor: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 8,
+                color: '#fff',
+                fontSize: 14,
+                outline: 'none',
+                boxSizing: 'border-box',
+                marginBottom: 12,
+              }}
+            />
+
+            {/* Online Toggle */}
+            <div
+              onClick={() => setNewOutside(!newOutside)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 12px',
+                background: newOutside ? 'rgba(45,106,79,0.2)' : 'rgba(255,255,255,0.03)',
+                border: newOutside ? '1px solid rgba(45,106,79,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                marginBottom: 12,
+              }}
+            >
+              <span style={{ color: newOutside ? '#95d5b2' : '#94a3b8', fontSize: 13 }}>
+                Online (Multiplayer)
+              </span>
+              <div style={{
+                width: 36,
+                height: 20,
+                borderRadius: 10,
+                background: newOutside ? '#2d6a4f' : 'rgba(255,255,255,0.1)',
+                position: 'relative',
+                transition: 'all 0.2s',
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: 2,
+                  left: newOutside ? 18 : 2,
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  background: '#fff',
+                  transition: 'all 0.2s',
+                }} />
+              </div>
             </div>
 
-            {/* Floor Style */}
-            <div style={styles.section}>
-              <div style={styles.sectionTitle}>Floor Style</div>
-
-              {/* Preview */}
-              <div style={{
-                ...styles.imagePreview,
-                marginBottom: 16,
-              }}>
-                {newBackgroundImage ? (
-                  <div style={{
-                    width: '100%',
-                    height: '100%',
-                    backgroundImage: `url(${newBackgroundImage})`,
-                    backgroundSize: newFloorTile ? `${newFloorTileSize}px ${newFloorTileSize}px` : 'cover',
-                    backgroundRepeat: newFloorTile ? 'repeat' : 'no-repeat',
-                    backgroundPosition: 'center',
-                  }} />
-                ) : newFloorPattern ? (
-                  <div style={{
-                    width: '100%',
-                    height: '100%',
-                    background: newFloorPattern,
-                    backgroundSize: newFloorPatternSize,
-                  }} />
-                ) : (
-                  <span style={styles.imagePreviewPlaceholder}>Select a floor style below</span>
-                )}
-              </div>
-
-              {/* Floor Tile Picker */}
+            {/* Floor Picker */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ color: '#64748b', fontSize: 11, marginBottom: 6 }}>Floor</div>
               <FloorTilePicker
                 value={newFloorPattern || newBackgroundImage}
                 isPattern={!!newFloorPattern}
                 onSelect={handleTileSelect}
-                onUploadCustom={onUploadImage ? handleCustomUpload : undefined}
+                onUploadCustom={onUploadImage ? () => fileInputRef.current?.click() : undefined}
               />
-
-              {/* Hidden file input for custom uploads */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -472,122 +265,77 @@ export const EditRoomOverlay: React.FC<EditRoomOverlayProps> = ({
                 style={{ display: 'none' }}
                 disabled={isUploading}
               />
-
-              {/* Tile size slider - show when there's a background image */}
-              {newBackgroundImage && !newFloorPattern && (
-                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Tile size:</span>
-                  <input
-                    type="range"
-                    min="50"
-                    max="300"
-                    step="10"
-                    value={newFloorTileSize}
-                    onChange={(e) => { setNewFloorTileSize(Number(e.target.value)); setNewFloorTile(true); }}
-                    style={{ flex: 1, cursor: 'pointer' }}
-                  />
-                  <span style={{ color: '#e5e7eb', fontSize: 13, minWidth: 50 }}>
-                    {newFloorTileSize}px
-                  </span>
-                </div>
-              )}
-
-              {/* Pattern size slider - only for patterns */}
-              {newFloorPattern && (
-                <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ color: '#9ca3af', fontSize: 13 }}>Pattern size:</span>
-                  <input
-                    type="range"
-                    min="50"
-                    max="250"
-                    step="10"
-                    value={parseInt(newFloorPatternSize) || 100}
-                    onChange={(e) => setNewFloorPatternSize(`${e.target.value}px ${e.target.value}px`)}
-                    style={{ flex: 1, cursor: 'pointer' }}
-                  />
-                  <span style={{ color: '#e5e7eb', fontSize: 13, minWidth: 50 }}>
-                    {parseInt(newFloorPatternSize) || 100}px
-                  </span>
-                </div>
-              )}
-
-              {/* Clear button */}
-              {(newBackgroundImage || newFloorPattern) && (
-                <button
-                  onClick={() => {
-                    setNewBackgroundImage('');
-                    setNewFloorPattern('');
-                    setNewFloorPatternSize('');
-                    setNewFloorTile(false);
-                  }}
-                  style={{
-                    ...styles.fileInputLabel,
-                    marginTop: 12,
-                    display: 'inline-flex',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-                  }}
-                >
-                  Clear Floor Style
-                </button>
-              )}
             </div>
 
-            {/* Danger Zone */}
-            {canDelete && onDelete && (
-              <div style={styles.section}>
-                <div style={styles.dangerZone}>
-                  <div style={styles.dangerTitle}>Danger Zone</div>
-                  <div style={styles.dangerDescription}>
-                    Deleting this room will remove all its contents including apps and doors.
-                  </div>
-                  <button
-                    style={styles.deleteButton}
-                    onClick={handleDelete}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.3)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
-                    }}
-                  >
-                    🗑️ Delete Room
-                  </button>
-                </div>
+            {/* Tile size slider */}
+            {newBackgroundImage && !newFloorPattern && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ color: '#64748b', fontSize: 11 }}>Size</span>
+                <input
+                  type="range"
+                  min="50"
+                  max="300"
+                  step="10"
+                  value={newFloorTileSize}
+                  onChange={(e) => { setNewFloorTileSize(Number(e.target.value)); setNewFloorTile(true); }}
+                  style={{ flex: 1, cursor: 'pointer' }}
+                />
+                <span style={{ color: '#94a3b8', fontSize: 11, minWidth: 40 }}>{newFloorTileSize}px</span>
               </div>
+            )}
+
+            {/* Delete */}
+            {canDelete && onDelete && (
+              <button
+                onClick={handleDelete}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#ef4444',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  padding: 0,
+                  marginTop: 8,
+                }}
+              >
+                Delete Room
+              </button>
             )}
           </div>
 
           {/* Footer */}
-          <div style={styles.footer}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 10,
+            padding: '12px 16px',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+          }}>
             <button
-              style={{ ...styles.button, ...styles.buttonSecondary }}
               onClick={onClose}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+              style={{
+                padding: '8px 16px',
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: 6,
+                color: '#94a3b8',
+                fontSize: 13,
+                cursor: 'pointer',
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
-              }}
-            >
-              Cancel
-            </button>
+            >Cancel</button>
             <button
-              style={{ ...styles.button, ...styles.buttonPrimary }}
               onClick={handleSave}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '0.9';
+              style={{
+                padding: '8px 16px',
+                background: '#10b981',
+                border: 'none',
+                borderRadius: 6,
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
               }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '1';
-              }}
-            >
-              Save Changes
-            </button>
+            >Save</button>
           </div>
         </div>
       </div>

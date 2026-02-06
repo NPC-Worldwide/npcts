@@ -63,12 +63,14 @@ export interface DoorConfig {
   leadsTo: string; // Room name
   orientation: DoorDirection;
   image?: string;
+  type?: 'room' | 'outside';
 }
 
 export interface Door extends BoundingBox {
   leadsTo: string;
   orientation: DoorDirection;
   image?: string;
+  type?: 'room' | 'outside';
 }
 
 // =============================================================================
@@ -123,6 +125,7 @@ export interface RoomConfig {
   floor_tile_size?: number;    // Tile size in pixels (default 100)
   floor_pattern?: string;      // CSS pattern (alternative to image)
   floor_pattern_size?: string; // CSS background-size for pattern
+  outside?: boolean;           // If true, room is multiplayer/shared
 }
 
 export interface Room {
@@ -368,4 +371,62 @@ export interface LoadedImage {
   image: HTMLImageElement;
   src: string;
   finalPath?: string;
+}
+
+// =============================================================================
+// Multiplayer / Outside World Types
+// =============================================================================
+
+export type AvatarAccessory = 'none' | 'hat' | 'glasses' | 'crown' | 'halo' | 'horns' | 'cat-ears' | 'headphones' | 'bow' | 'bandana';
+export type AvatarTrailEffect = 'none' | 'sparkle' | 'glow' | 'shadow' | 'hearts' | 'fire' | 'ice' | 'leaves';
+export type AvatarEmote = 'neutral' | 'happy' | 'sad' | 'angry' | 'surprised' | 'sleeping' | 'love' | 'cool';
+
+export interface AvatarSettings {
+  name: string;
+  primaryColor: string;
+  secondaryColor: string;
+  outlineColor: string;
+  size: number;
+  showNameTag: boolean;
+  nameTagColor: string;
+  trailEffect: AvatarTrailEffect;
+  accessory: AvatarAccessory;
+  // New fields
+  statusMessage?: string;       // Short bio/status (e.g., "AFK", "Looking for group")
+  emote?: AvatarEmote;          // Current expression/emote
+  moveSpeed?: number;           // 0.5 to 2.0, affects movement speed
+  nameTagStyle?: 'default' | 'bubble' | 'minimal' | 'fancy';
+  useCustomColors?: boolean;    // If true, use custom colors instead of preset
+}
+
+export interface RemotePlayer {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  direction: CharacterDirection;
+  frame: number;
+  isMoving: boolean;
+  avatarSettings?: AvatarSettings;
+  spriteSheets: SpriteSheets;
+}
+
+export interface OutsideZoneConfig {
+  name: string;
+  walls: Record<WallPosition, WallConfig>;
+  doors: Record<string, DoorConfig>;
+  applications: Record<string, ApplicationConfig>;
+  floor_image?: string;
+  floor_tile?: boolean;
+  floor_tile_size?: number;
+  floor_pattern?: string;
+  floor_pattern_size?: string;
+}
+
+export interface OutsideChatMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  content: string;
+  timestamp: number;
 }

@@ -152,6 +152,7 @@ export function doorConfigToPixels(
     leadsTo: config.leadsTo,
     orientation: config.orientation,
     image: config.image,
+    type: config.type,
   };
 }
 
@@ -309,6 +310,7 @@ export function doorToConfig(
     leadsTo: door.leadsTo,
     orientation: door.orientation,
     image: door.image,
+    type: door.type,
   };
 }
 

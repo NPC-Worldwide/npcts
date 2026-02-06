@@ -197,6 +197,7 @@ export interface UserSettings {
   theme?: 'dark' | 'light' | 'system';
   showKeyLegend?: boolean;
   showMinimap?: boolean;
+  showTimeTracking?: boolean;
   moveSpeed?: number;
   avatar?: AvatarSettings;
   hasCompletedSetup?: boolean;
@@ -218,6 +219,7 @@ interface SpatialProviderProps {
   initialRoom?: string;
   width?: number;
   height?: number;
+  onEnterOutside?: (zoneName: string) => void;
 }
 
 // =============================================================================
@@ -232,6 +234,7 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
   initialRoom = 'Room1',
   width = typeof window !== 'undefined' ? window.innerWidth : 1920,
   height = typeof window !== 'undefined' ? window.innerHeight : 1080,
+  onEnterOutside,
 }) => {
   // State
   const [config, setConfig] = useState<SpatialWorldConfig | null>(null);
@@ -658,15 +661,20 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
   const addRoom = useCallback((name: string, roomConfig: RoomConfig) => {
     setConfig((prev) => {
       if (!prev) return null;
-      return {
+      const newConfig = {
         ...prev,
         rooms: {
           ...prev.rooms,
           [name]: roomConfig,
         },
       };
+      // Save immediately with the new config
+      configClient.saveConfig(newConfig).catch((err) => {
+        console.error('Failed to auto-save config after adding room:', err);
+      });
+      return newConfig;
     });
-  }, []);
+  }, [configClient]);
 
   const deleteRoom = useCallback((name: string) => {
     setConfig((prev) => {
@@ -711,7 +719,7 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
     (roomName: string, appName: string, appConfig: ApplicationConfig) => {
       setConfig((prev) => {
         if (!prev || !prev.rooms[roomName]) return prev;
-        return {
+        const newConfig = {
           ...prev,
           rooms: {
             ...prev.rooms,
@@ -724,9 +732,14 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
             },
           },
         };
+        // Save immediately with the new config
+        configClient.saveConfig(newConfig).catch((err) => {
+          console.error('Failed to auto-save config after adding app:', err);
+        });
+        return newConfig;
       });
     },
-    []
+    [configClient]
   );
 
   const deleteApplication = useCallback(
@@ -801,7 +814,7 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
     (roomName: string, doorName: string, doorConfig: DoorConfig) => {
       setConfig((prev) => {
         if (!prev || !prev.rooms[roomName]) return prev;
-        return {
+        const newConfig = {
           ...prev,
           rooms: {
             ...prev.rooms,
@@ -814,9 +827,14 @@ export const SpatialProvider: React.FC<SpatialProviderProps> = ({
             },
           },
         };
+        // Save immediately with the new config
+        configClient.saveConfig(newConfig).catch((err) => {
+          console.error('Failed to auto-save config after adding door:', err);
+        });
+        return newConfig;
       });
     },
-    []
+    [configClient]
   );
 
   const deleteDoor = useCallback((roomName: string, doorName: string) => {

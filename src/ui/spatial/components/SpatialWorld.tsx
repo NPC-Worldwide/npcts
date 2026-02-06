@@ -5,7 +5,7 @@
  * Combines Room, Character, and keyboard input handling.
  */
 
-import React, { useCallback, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef, useMemo } from 'react';
 import type {
   Application as ApplicationType,
   Door as DoorType,
@@ -18,6 +18,7 @@ import { Character } from './Character';
 import { HelpOverlay } from './HelpOverlay';
 import { MenuOverlay } from './MenuOverlay';
 import { MediaPlayerDock } from './MediaPlayerDock';
+import type { OnlineRoomInfo } from './Door';
 
 const TASKBAR_HEIGHT = 36;
 
@@ -54,10 +55,16 @@ interface SpatialWorldProps {
   loadingComponent?: React.ReactNode;
   /** Custom error component */
   errorComponent?: (error: string) => React.ReactNode;
-  /** Time tracking - seconds in current room */
-  roomTime?: number;
-  /** Time tracking - total seconds today */
-  totalTime?: number;
+  /** Time tracking - current session time in seconds */
+  sessionTime?: number;
+  /** Time tracking - room time for daily period */
+  roomTimeDaily?: number;
+  /** Time tracking - room time for weekly period */
+  roomTimeWeekly?: number;
+  /** Time tracking - room time for monthly period */
+  roomTimeMonthly?: number;
+  /** Whether to show time tracking in taskbar */
+  showTimeTracking?: boolean;
   /** Callback to open stats panel */
   onOpenStats?: () => void;
   /** Callback to edit current room */
@@ -83,8 +90,11 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
   onEditModeChange,
   loadingComponent,
   errorComponent,
-  roomTime = 0,
-  totalTime = 0,
+  sessionTime = 0,
+  roomTimeDaily = 0,
+  roomTimeWeekly = 0,
+  roomTimeMonthly = 0,
+  showTimeTracking = true,
   onOpenStats,
   onEditRoom,
 }) => {
@@ -140,6 +150,11 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
   const [highlightedDoor, setHighlightedDoor] = useState<string | undefined>();
   const [selectedElement, setSelectedElement] = useState<string | undefined>();
 
+  // Friends invite panel
+  const [showInvitePanel, setShowInvitePanel] = useState(false);
+  const [friends, setFriends] = useState<Array<{ id: number; name: string }>>([]);
+  const [newFriendName, setNewFriendName] = useState('');
+
   // Drag state for edit mode
   const [draggingApp, setDraggingApp] = useState<{ name: string; app: ApplicationType } | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -151,6 +166,42 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
 
   // Previous room for change detection
   const [prevRoom, setPrevRoom] = useState(currentRoom);
+
+  // Compute online info for doors leading to online rooms
+  const onlineInfoByDoor = useMemo(() => {
+    if (!config || !currentRoomData) return undefined;
+
+    const currentRoomConfig = config.rooms[currentRoom];
+    if (!currentRoomConfig) return undefined;
+
+    const info: Record<string, OnlineRoomInfo> = {};
+
+    // Check each door in the current room
+    for (const [doorName, door] of Object.entries(currentRoomData.doors)) {
+      const doorConfig = currentRoomConfig.doors[doorName];
+      // If this door leads to an online room OR has type 'outside'
+      if (door.type === 'outside' || doorConfig?.type === 'outside') {
+        const targetRoom = door.leadsTo;
+        const targetRoomConfig = config.rooms[targetRoom];
+        info[doorName] = {
+          zoneName: targetRoom,
+          serverUrl: 'localhost:3001',
+          isConnected: true, // Could be wired to actual connection status
+          playerCount: undefined, // Could fetch from server
+        };
+      } else if (config.rooms[door.leadsTo]?.outside) {
+        // The target room is marked as online
+        info[doorName] = {
+          zoneName: door.leadsTo,
+          serverUrl: 'localhost:3001',
+          isConnected: true,
+          playerCount: undefined,
+        };
+      }
+    }
+
+    return Object.keys(info).length > 0 ? info : undefined;
+  }, [config, currentRoom, currentRoomData]);
 
   // Detect room changes
   useEffect(() => {
@@ -452,10 +503,15 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
     );
   }
 
+  // Check if current room is online
+  const currentRoomConfig = config.rooms[currentRoom];
+  const isOnlineRoom = currentRoomConfig?.outside === true;
+
   // If explicit height is passed, use it for container; otherwise use viewport + taskbar
-  // Room height is always container minus taskbar
+  // Room height is always container minus taskbar (and online bar if applicable)
+  const ONLINE_BAR_HEIGHT = isOnlineRoom ? 44 : 0;
   const containerHeight = height || (viewport.height + TASKBAR_HEIGHT);
-  const roomHeight = containerHeight - TASKBAR_HEIGHT;
+  const roomHeight = containerHeight - TASKBAR_HEIGHT - ONLINE_BAR_HEIGHT;
   const roomViewport = { ...viewport, height: roomHeight };
 
   return (
@@ -470,6 +526,118 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
         ...customStyle,
       }}
     >
+      {/* Online room status bar - shows at TOP when in an online room */}
+      {isOnlineRoom && (
+        <div
+          style={{
+            height: ONLINE_BAR_HEIGHT,
+            backgroundColor: 'rgba(15, 23, 42, 0.98)',
+            borderBottom: '1px solid rgba(45, 106, 79, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0 16px',
+            flexShrink: 0,
+          }}
+        >
+          {/* Left: Online indicator */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              backgroundColor: 'rgba(45, 106, 79, 0.3)',
+              padding: '4px 12px',
+              borderRadius: 12,
+              border: '1px solid rgba(45, 106, 79, 0.5)',
+            }}>
+              <div style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                backgroundColor: '#40916c',
+                boxShadow: '0 0 8px #40916c',
+              }} />
+              <span style={{ color: '#95d5b2', fontSize: 11, fontWeight: 600 }}>
+                ONLINE
+              </span>
+            </div>
+            <span style={{ color: '#f1f5f9', fontSize: 14, fontWeight: 500 }}>
+              {currentRoom}
+            </span>
+          </div>
+
+          {/* Center: Web URL */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            backgroundColor: 'rgba(0,0,0,0.3)',
+            padding: '6px 14px',
+            borderRadius: 8,
+          }}>
+            <span style={{ color: '#64748b', fontSize: 11 }}>Join:</span>
+            <span style={{
+              color: '#3b82f6',
+              fontSize: 12,
+              fontFamily: 'monospace',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+            }}
+            onClick={() => {
+              navigator.clipboard.writeText(`http://localhost:3001/room/${currentRoom}`);
+            }}
+            title="Click to copy"
+            >
+              localhost:3001/room/{currentRoom}
+            </span>
+          </div>
+
+          {/* Right: Player count + Invite button */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              color: '#94a3b8',
+              fontSize: 12,
+            }}>
+              <span>👥</span>
+              <span>1 online</span>
+            </div>
+            <button
+              style={{
+                backgroundColor: '#3b82f6',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 6,
+                padding: '6px 12px',
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+              onClick={() => {
+                // Fetch friends list and show panel
+                fetch('http://localhost:3001/api/friends?user_id=1')
+                  .then(res => res.json())
+                  .then(data => setFriends(data))
+                  .catch(() => setFriends([]));
+                setShowInvitePanel(true);
+              }}
+            >
+              <span>+</span> Invite Friends
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main room area */}
       <div
         ref={containerRef}
@@ -565,6 +733,7 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
           }
         }}
         onAppDelete={(name) => deleteApplication(currentRoom, name)}
+        onlineInfoByDoor={onlineInfoByDoor}
       >
         {/* Character */}
         <Character
@@ -621,6 +790,135 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
       {/* Help overlay */}
       {showHelp && <HelpOverlay onClose={() => setShowHelp(false)} />}
 
+      {/* Friends invite panel */}
+      {showInvitePanel && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+          }}
+          onClick={() => setShowInvitePanel(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#1e1e2e',
+              borderRadius: 12,
+              padding: 20,
+              minWidth: 320,
+              maxHeight: '80vh',
+              overflow: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ color: '#f1f5f9', margin: 0, fontSize: 16 }}>Invite Friends to {currentRoom}</h3>
+              <button
+                onClick={() => setShowInvitePanel(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: 20, cursor: 'pointer' }}
+              >×</button>
+            </div>
+
+            {/* Add friend form */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <input
+                type="text"
+                placeholder="Friend's name..."
+                value={newFriendName}
+                onChange={(e) => setNewFriendName(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontSize: 13,
+                }}
+              />
+              <button
+                onClick={() => {
+                  if (newFriendName.trim()) {
+                    fetch('http://localhost:3001/api/friends/add', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ user_id: 1, name: newFriendName.trim() }),
+                    })
+                      .then(res => res.json())
+                      .then(friend => {
+                        setFriends(prev => [...prev, friend]);
+                        setNewFriendName('');
+                      });
+                  }
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#3b82f6',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#fff',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                }}
+              >Add</button>
+            </div>
+
+            {/* Friends list */}
+            {friends.length === 0 ? (
+              <div style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: 20 }}>
+                No friends yet. Add someone above!
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {friends.map((friend) => (
+                  <div
+                    key={friend.id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 12px',
+                      backgroundColor: 'rgba(255,255,255,0.05)',
+                      borderRadius: 8,
+                    }}
+                  >
+                    <span style={{ color: '#f1f5f9', fontSize: 13 }}>{friend.name}</span>
+                    <button
+                      onClick={() => {
+                        fetch('http://localhost:3001/api/friends/invite', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            from_user_id: 1,
+                            friend_name: friend.name,
+                            room_name: currentRoom,
+                          }),
+                        }).then(() => {
+                          alert(`Invited ${friend.name} to ${currentRoom}!`);
+                        });
+                      }}
+                      style={{
+                        padding: '4px 12px',
+                        backgroundColor: '#2d6a4f',
+                        border: 'none',
+                        borderRadius: 4,
+                        color: '#fff',
+                        fontSize: 11,
+                        cursor: 'pointer',
+                      }}
+                    >Invite</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Menu overlay for apps with menuItems */}
       {showMenu && menuApp && menuItems && (
         <MenuOverlay
@@ -654,8 +952,11 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
         onOpenStats={onOpenStats}
         onEditRoom={onEditRoom}
         currentRoom={currentRoom}
-        roomTime={roomTime}
-        totalTime={totalTime}
+        sessionTime={sessionTime}
+        roomTimeDaily={roomTimeDaily}
+        roomTimeWeekly={roomTimeWeekly}
+        roomTimeMonthly={roomTimeMonthly}
+        showTimeTracking={showTimeTracking}
       />
     </div>
   );
