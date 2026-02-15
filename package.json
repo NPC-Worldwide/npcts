@@ -1,6 +1,6 @@
 {
   "name": "npcts",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "NPC TypeScript SDK - A comprehensive UI component library for building AI-powered applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -82,6 +82,8 @@
     "js-yaml": "^4.1.1",
     "jszip": "^3.10.1",
     "lucide-react": "^0.294.0",
+    "mammoth": "^1.11.0",
+    "xlsx": "^0.18.5",
     "react-chartjs-2": "^5.2.0",
     "react-force-graph-2d": "^1.25.4"
   },

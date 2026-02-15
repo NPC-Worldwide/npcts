@@ -18,6 +18,32 @@ export interface FileSystemClient {
 }
 
 /**
+ * File I/O adapter for document viewers (CsvViewer, DocxViewer, PptxViewer).
+ * Abstracts over Electron IPC (window.api) and HTTP fetch so the same
+ * viewer components work in both incognide and web apps.
+ */
+export interface DocumentFileApi {
+  /** Read a file as binary (XLSX, DOCX, PPTX are all ZIP-based) */
+  readFileBuffer(path: string): Promise<ArrayBuffer>;
+  /** Read a file as text (CSV, HTML, plain text) */
+  readFileContent(path: string): Promise<string>;
+  /** Write text content to a file */
+  writeFileContent(path: string, content: string): Promise<void>;
+  /** Write binary content to a file */
+  writeFileBuffer(path: string, buffer: ArrayBuffer | Uint8Array): Promise<void>;
+  /** Convert a DOCX file to HTML via mammoth (optional, DocxViewer only) */
+  convertDocxToHtml?(path: string): Promise<{ html: string; fonts?: string[]; error?: string }>;
+  /** Read CSV content as text with error handling (optional, CsvViewer only) */
+  readCsvContent?(path: string): Promise<{ content: string; error?: string }>;
+}
+
+/** Extract filename from a file path */
+export const getFileName = (filePath: string | null | undefined): string => {
+  if (!filePath) return '';
+  return filePath.replace(/\\/g, '/').split('/').pop() || '';
+};
+
+/**
  * Normalize a file path by converting backslashes to forward slashes
  * and removing trailing slashes
  * @param path - The path to normalize (can be null/undefined)

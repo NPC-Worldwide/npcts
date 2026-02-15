@@ -143,7 +143,6 @@ export const ContentPaneContainer: React.FC<ContentPaneContainerProps> =
         return (
           <CsvViewer
             filePath={contentId || ""}
-            data={paneData?.csvData}
           />
         );
 
