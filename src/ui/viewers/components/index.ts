@@ -9,3 +9,5 @@ export type { DocxViewerProps, DocxViewerHandle } from "./DocxViewer";
 export { PptxViewer } from "./PptxViewer";
 export type { PptxViewerProps, PptxViewerHandle } from "./PptxViewer";
 export { ImageViewer } from "./ImageViewer";
+export { MindMapViewer } from "./MindMapViewer";
+export type { MindMapViewerProps, MindMapData, MindMapNode, MindMapLink, MapType } from "./MindMapViewer";
