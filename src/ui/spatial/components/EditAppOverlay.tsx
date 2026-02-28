@@ -28,7 +28,7 @@ export interface EditAppOverlayProps {
   onSave: (appKey: string, updates: Partial<AppData>) => void;
   onDelete?: (appKey: string) => void;
   onUploadImage?: (file: File) => Promise<string>;
-  availableCommands?: string[];
+  availableCommands?: string[] | {name: string, command: string}[];
 }
 
 // =============================================================================
@@ -419,28 +419,32 @@ export const EditAppOverlay: React.FC<EditAppOverlayProps> = ({
               <div style={styles.sectionTitle}>Command</div>
               {availableCommands.length > 0 && (
                 <div style={styles.commandList}>
-                  {availableCommands.slice(0, 5).map((cmd) => (
-                    <div
-                      key={cmd}
-                      style={{
-                        ...styles.commandItem,
-                        backgroundColor: command === cmd ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
-                      }}
-                      onClick={() => handleCommandSelect(cmd)}
-                      onMouseEnter={(e) => {
-                        if (command !== cmd) {
-                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (command !== cmd) {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                        }
-                      }}
-                    >
-                      {cmd}
-                    </div>
-                  ))}
+                  {availableCommands.slice(0, 5).map((cmd) => {
+                    const cmdStr = typeof cmd === 'string' ? cmd : cmd.command;
+                    const cmdLabel = typeof cmd === 'string' ? cmd : cmd.name;
+                    return (
+                      <div
+                        key={cmdStr}
+                        style={{
+                          ...styles.commandItem,
+                          backgroundColor: command === cmdStr ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                        }}
+                        onClick={() => handleCommandSelect(cmdStr)}
+                        onMouseEnter={(e) => {
+                          if (command !== cmdStr) {
+                            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (command !== cmdStr) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                      >
+                        {cmdLabel}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               <input

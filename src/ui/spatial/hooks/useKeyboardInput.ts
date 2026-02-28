@@ -33,6 +33,8 @@ interface KeyboardCallbacks {
   onEscape?: () => void;
   /** Called when 'Delete' or 'Backspace' is pressed (with Ctrl) */
   onDelete?: () => void;
+  /** Called when 'r' is pressed in edit mode to rotate selected element */
+  onRotate?: (degrees: number) => void;
   /** Custom key handler for any other keys */
   onCustomKey?: (key: string, event: KeyboardEvent) => void;
 }
@@ -70,6 +72,7 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
     onSpace,
     onEscape,
     onDelete,
+    onRotate,
     onCustomKey,
     moveSpeed = 10,
     enabled = true,
@@ -93,6 +96,7 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
     onSpace,
     onEscape,
     onDelete,
+    onRotate,
     onCustomKey,
     editMode,
     formsOpen,
@@ -115,6 +119,7 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
       onSpace,
       onEscape,
       onDelete,
+      onRotate,
       onCustomKey,
       editMode,
       formsOpen,
@@ -134,6 +139,7 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
     onSpace,
     onEscape,
     onDelete,
+    onRotate,
     onCustomKey,
     editMode,
     formsOpen,
@@ -188,10 +194,13 @@ export function useKeyboardInput(options: UseKeyboardInputOptions): void {
       // Track pressed keys
       pressedKeysRef.current[key] = true;
 
-      // When in edit mode, only 'f' works to exit (plus movement is blocked)
+      // When in edit mode, 'f' exits, 'r' rotates, shift+r rotates other direction
       if (opts.editMode) {
         if (key === 'f') {
           opts.onEditMode?.();
+        } else if (key === 'r' || key === 'R') {
+          event.preventDefault();
+          opts.onRotate?.(event.shiftKey ? -90 : 90);
         }
         return; // Block other keys in edit mode
       }

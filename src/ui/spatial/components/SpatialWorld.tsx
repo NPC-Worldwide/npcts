@@ -279,6 +279,21 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
     onEditModeChange?.(!editMode);
   }, [toggleEditMode, editMode, onEditModeChange]);
 
+  // Handle rotation in edit mode (r key)
+  const handleRotate = useCallback((degrees: number) => {
+    if (!selectedElement || !config) return;
+    const roomConfig = config.rooms[currentRoom];
+    if (!roomConfig) return;
+    const appConfig = roomConfig.applications?.[selectedElement];
+    if (appConfig) {
+      const currentRotation = appConfig.rotation || 0;
+      updateApplication(currentRoom, selectedElement, {
+        rotation: currentRotation + degrees,
+      });
+      saveConfig?.();
+    }
+  }, [selectedElement, config, currentRoom, updateApplication, saveConfig]);
+
   // Handle add application (e key when NOT near an app)
   const handleAddApplication = useCallback(() => {
     console.log('e key pressed - add application');
@@ -343,6 +358,7 @@ export const SpatialWorld: React.FC<SpatialWorldProps> = ({
     onAddRoom: handleAddRoom,
     onHelp: handleHelpToggle,
     onEscape: handleEscape,
+    onRotate: handleRotate,
     moveSpeed: 10,
     enabled: !showHelp,
     editMode,
