@@ -6,7 +6,7 @@ export interface NPC {
   model: string;
   provider: string;
   primary_directive?: string;
-  jinxs?: string[];
+  jinxes?: string[];
   is_forenpc?: boolean;
 }
 

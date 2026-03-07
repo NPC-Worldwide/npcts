@@ -9,13 +9,13 @@ export interface Jinx {
 }
 
 interface JinxTreeProps {
-  jinxs: Jinx[];
+  jinxes: Jinx[];
   selectedJinx: string | null;
   onJinxSelect: (jinx: Jinx) => void;
 }
 
 export const JinxTree: React.FC<JinxTreeProps> = ({
-  jinxs,
+  jinxes,
   selectedJinx,
   onJinxSelect
 }) => {
@@ -109,14 +109,14 @@ export const JinxTree: React.FC<JinxTreeProps> = ({
     return items;
   };
 
-  const tree = buildTree(jinxs);
+  const tree = buildTree(jinxes);
 
   return (
     <div className="space-y-1">
       {renderTree(tree)}
-      {jinxs.length === 0 && (
+      {jinxes.length === 0 && (
         <div className="text-center p-4 text-gray-500 text-sm">
-          No jinxs found
+          No jinxes found
         </div>
       )}
     </div>
