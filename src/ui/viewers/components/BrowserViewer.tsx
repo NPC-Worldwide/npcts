@@ -94,3 +94,4 @@ export const BrowserViewer: React.FC<BrowserViewerProps> = memo(({
 });
 
 BrowserViewer.displayName = "BrowserViewer";
+
