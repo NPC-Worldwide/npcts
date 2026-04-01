@@ -148,8 +148,8 @@ export const FloorPattern: React.FC<FloorPatternProps> = ({
   height,
   offsetX = 0,
   offsetY = 0,
-  tile = false,
-  tileSize = 100,
+  tile,
+  tileSize = 200,
   className = '',
   style: customStyle,
 }) => {
@@ -195,14 +195,15 @@ export const FloorPattern: React.FC<FloorPatternProps> = ({
       };
     }
 
-    // Use image if provided and loaded
+    // Use image if provided and loaded — tile by default
     if (imageUrl && imageLoaded && !imageError) {
+      const shouldTile = tile !== false;
       return {
         ...baseStyle,
         backgroundImage: `url(${imageUrl})`,
-        backgroundSize: tile ? `${tileSize}px ${tileSize}px` : 'cover',
-        backgroundPosition: tile ? '0 0' : 'center',
-        backgroundRepeat: tile ? 'repeat' : 'no-repeat',
+        backgroundSize: shouldTile ? `${tileSize}px ${tileSize}px` : 'cover',
+        backgroundPosition: shouldTile ? '0 0' : 'center',
+        backgroundRepeat: shouldTile ? 'repeat' : 'no-repeat',
       };
     }
 

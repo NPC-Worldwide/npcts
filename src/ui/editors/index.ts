@@ -6,3 +6,5 @@ export type {
     Selection,
     EditorTool
 } from './ImageEditor';
+
+export * from './writing';
