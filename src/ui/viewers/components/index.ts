@@ -11,5 +11,7 @@ export type { PptxViewerProps, PptxViewerHandle } from "./PptxViewer";
 export { ImageViewer } from "./ImageViewer";
 export { MindMapViewer } from "./MindMapViewer";
 export type { MindMapViewerProps, MindMapData, MindMapNode, MindMapLink, MapType } from "./MindMapViewer";
-export { GISMapView, featuresToGeoJSON, geoJSONToFeatures, BASEMAPS, LAYER_COLORS, DEFAULT_PROJECT, REFERENCE_LAYERS } from "./GISMapView";
+export { GISMapView, featuresToGeoJSON, geoJSONToFeatures, BASEMAPS, LAYER_COLORS, DEFAULT_PROJECT, REFERENCE_LAYERS, TILE_OVERLAYS } from "./GISMapView";
 export type { GISMapViewProps, GISProject, GeoFeature, MapLayer, DrawMode, OsintMarkerSet } from "./GISMapView";
+export { RadioPane, HAM_BANDS, EMERGENCY_FREQS, DIGITAL_MODES } from "./RadioPane";
+export type { RadioPaneProps, RadioTab, RepeaterResult, APRSStation, QSOEntry, SolarData } from "./RadioPane";

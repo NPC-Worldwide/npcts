@@ -5,16 +5,8 @@ import { MapContainer, TileLayer, Marker, Polyline, Polygon, CircleMarker,
 
 // ---- Leaflet bootstrap ----
 
-const LEAFLET_CSS_ID = 'npcts-gis-leaflet-css';
-function ensureLeafletCSS() {
-    if (typeof document === 'undefined') return;
-    if (document.getElementById(LEAFLET_CSS_ID)) return;
-    const link = document.createElement('link');
-    link.id = LEAFLET_CSS_ID;
-    link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(link);
-}
+// CSS is expected to be imported by the consuming app (e.g. import 'leaflet/dist/leaflet.css')
+// No dynamic CDN injection — CSP in Electron apps blocks it
 
 function fixMarkerIcons() {
     delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -66,6 +58,27 @@ export const BASEMAPS: Record<string, { name: string; url: string; attribution: 
     topo: { name: 'Topographic', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', attribution: '&copy; OpenTopoMap' },
     dark: { name: 'Dark', url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attribution: '&copy; CARTO' },
     light: { name: 'Light', url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', attribution: '&copy; CARTO' },
+};
+
+export const TILE_OVERLAYS: Record<string, { name: string; url: string; attribution: string; opacity: number }> = {
+    roads: {
+        name: 'Roads & Labels',
+        url: 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; CARTO',
+        opacity: 0.9,
+    },
+    terrain: {
+        name: 'Terrain Shading',
+        url: 'https://tiles.wmflabs.org/hillshading/{z}/{x}/{y}.png',
+        attribution: '&copy; Wikimedia',
+        opacity: 0.5,
+    },
+    stamen_lines: {
+        name: 'Transit Lines',
+        url: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lines/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; Stadia/Stamen',
+        opacity: 0.4,
+    },
 };
 
 export const LAYER_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'];
@@ -263,6 +276,7 @@ export interface GISMapViewProps {
     className?: string;
     activeOverlays?: Set<string>;
     osintLayers?: OsintMarkerSet[];
+    activeTileOverlays?: Set<string>;
 }
 
 // ---- Main component ----
@@ -278,6 +292,7 @@ export const GISMapView: React.FC<GISMapViewProps> = ({
     className,
     activeOverlays,
     osintLayers,
+    activeTileOverlays,
 }) => {
     const [drawingCoords, setDrawingCoords] = useState<[number, number][]>([]);
     const [measurePoints, setMeasurePoints] = useState<[number, number][]>([]);
@@ -288,7 +303,7 @@ export const GISMapView: React.FC<GISMapViewProps> = ({
     const mapRef = externalMapRef || internalMapRef;
     const [activeLayerId, setActiveLayerId] = useState(project.layers[0]?.id || 'default');
 
-    useEffect(() => { ensureLeafletCSS(); fixMarkerIcons(); }, []);
+    useEffect(() => { fixMarkerIcons(); }, []);
 
     const addFeature = useCallback((feature: GeoFeature) => {
         onProjectChange(prev => ({
@@ -395,6 +410,11 @@ export const GISMapView: React.FC<GISMapViewProps> = ({
                 ref={mapRef}
             >
                 <BasemapLayer basemap={project.basemap} />
+                {activeTileOverlays && Array.from(activeTileOverlays).map(id => {
+                    const overlay = TILE_OVERLAYS[id];
+                    if (!overlay) return null;
+                    return <TileLayer key={`overlay_${id}`} url={overlay.url} attribution={overlay.attribution} opacity={overlay.opacity} />;
+                })}
                 <ZoomControl position="bottomright" />
                 <MapInteraction mode={mode} onMapClick={handleMapClick} onMapMove={handleMapMove} drawingCoords={drawingCoords} />
 
@@ -471,6 +491,17 @@ export const GISMapView: React.FC<GISMapViewProps> = ({
                     {mode === 'measure' && (measureDistance != null ? `${measureDistance < 1 ? `${(measureDistance * 1000).toFixed(0)}m` : `${measureDistance.toFixed(2)}km`} (${(measureDistance * 0.621371).toFixed(2)}mi)` : 'Click to start measuring')}
                 </div>
             )}
+
+            {/* Basemap selector — floating on map */}
+            <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, display: 'flex', gap: 2, padding: '3px 4px', borderRadius: 6, background: 'rgba(15,23,42,0.9)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                {Object.entries(BASEMAPS).map(([key, bm]) => (
+                    <button key={key} onClick={() => onProjectChange(prev => ({ ...prev, basemap: key }))}
+                        style={{ padding: '3px 8px', borderRadius: 4, fontSize: '0.65rem', border: 'none', cursor: 'pointer',
+                            background: project.basemap === key ? '#059669' : 'transparent', color: project.basemap === key ? '#fff' : '#94a3b8' }}>
+                        {bm.name}
+                    </button>
+                ))}
+            </div>
 
             {/* Coords display */}
             <div style={{ position: 'absolute', bottom: 8, left: 8, padding: '2px 8px', borderRadius: 4, background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.65rem', color: '#94a3b8', zIndex: 1000, fontFamily: 'monospace' }}>
