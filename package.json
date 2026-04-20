@@ -1,6 +1,6 @@
 {
   "name": "npcts",
-  "version": "0.1.17",
+  "version": "0.1.18",
   "description": "NPC TypeScript SDK - A comprehensive UI component library for building AI-powered applications",
   "type": "module",
   "main": "./dist/index.js",

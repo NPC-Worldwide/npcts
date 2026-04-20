@@ -94,7 +94,10 @@ export interface ImageEditorProps {
     imageSrc: string | null;
     onSave?: (data: { adjustments: ImageAdjustments; textLayers: TextLayer[]; dataUrl: string }) => void;
     onClose?: () => void;
-    onGenerativeFill?: (selection: Selection, prompt: string) => Promise<void>;
+    onGenerativeFill?: (selection: Selection, prompt: string, opts?: { model?: string; provider?: string }) => Promise<void>;
+    fillModels?: Array<{ value: string; display_name: string; provider: string }>;
+    defaultFillModel?: string;
+    defaultFillProvider?: string;
     className?: string;
     showHeader?: boolean;
     title?: string;
@@ -192,6 +195,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
     onSave,
     onClose,
     onGenerativeFill,
+    fillModels = [],
+    defaultFillModel,
+    defaultFillProvider,
     className = '',
     showHeader = true,
     title = 'Image Editor'
@@ -205,11 +211,20 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
     // Layers
     const [textLayers, setTextLayers] = useState<TextLayer[]>([]);
     const [editingTextId, setEditingTextId] = useState<string | null>(null);
+    const [selectedTextId, setSelectedTextId] = useState<string | null>(null);
+    const [draggingTextId, setDraggingTextId] = useState<string | null>(null);
+    const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
     const [shapes, setShapes] = useState<ShapeLayer[]>([]);
     const [drawingShape, setDrawingShape] = useState<ShapeLayer | null>(null);
 
     // Drawing
     const [strokes, setStrokes] = useState<DrawingStroke[]>([]);
+    // Pixel data for shapes/text that have been flattened to the canvas
+    // (e.g. when the eraser passed over them). Survives the stroke-render
+    // clear-and-redraw cycle. Stored as a PNG data URL so it round-trips
+    // through history without holding a big ImageData in React state.
+    const [bakedLayer, setBakedLayer] = useState<string | null>(null);
+    const bakedImgRef = useRef<HTMLImageElement | null>(null);
     const [currentStroke, setCurrentStroke] = useState<DrawingStroke | null>(null);
     const [brushSize, setBrushSize] = useState(8);
     const [brushColor, setBrushColor] = useState('#ffffff');
@@ -245,11 +260,60 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
 
     // Generative fill prompt
     const [fillPrompt, setFillPrompt] = useState('');
+    const [fillModel, setFillModel] = useState<string>(defaultFillModel || '');
+    const [fillProvider, setFillProvider] = useState<string>(defaultFillProvider || '');
+    const [isFilling, setIsFilling] = useState(false);
+    useEffect(() => {
+        if (!fillModel && fillModels.length > 0) {
+            // Default to the first non-diffusers option (cloud inpaint),
+            // falling back to the first available model.
+            const cloud = fillModels.find(m => m.provider !== 'diffusers');
+            const pick = cloud || fillModels[0];
+            setFillModel(pick.value);
+            setFillProvider(pick.provider);
+        }
+    }, [fillModels, fillModel]);
 
     // Active panel
     const [activePanel, setActivePanel] = useState<'adjustments' | 'filters' | 'hsl'>('adjustments');
 
-    // Redraw canvas when strokes change
+    // Keep canvas internal size in sync with its rendered CSS size so that
+    // mouse coords equal canvas-internal coords 1:1 (no scaling needed) and
+    // the canvas never falls back to its 300×150 default.
+    const [canvasSizeTick, setCanvasSizeTick] = useState(0);
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const sync = () => {
+            const r = canvas.getBoundingClientRect();
+            const w = Math.round(r.width);
+            const h = Math.round(r.height);
+            if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+                canvas.width = w;
+                canvas.height = h;
+                setCanvasSizeTick(t => t + 1);
+            }
+        };
+        sync();
+        const ro = new ResizeObserver(sync);
+        ro.observe(canvas);
+        return () => ro.disconnect();
+    }, [imageSrc]);
+
+    // Keep a live HTMLImageElement for the baked layer so we can blit it
+    // onto the canvas on every render without decoding a new image each time.
+    useEffect(() => {
+        if (!bakedLayer) { bakedImgRef.current = null; return; }
+        const img = new Image();
+        img.onload = () => {
+            bakedImgRef.current = img;
+            // Force a re-render so the newly-decoded image gets composited.
+            setCanvasSizeTick(t => t + 1);
+        };
+        img.src = bakedLayer;
+    }, [bakedLayer]);
+
+    // Redraw canvas when strokes change (or canvas was resized)
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -258,11 +322,17 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Draw the baked (rasterized shapes/text) layer first
+        if (bakedImgRef.current) {
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.drawImage(bakedImgRef.current, 0, 0);
+        }
+
         // Draw all completed strokes
         strokes.forEach(stroke => {
             if (stroke.points.length < 2) return;
             ctx.beginPath();
-            ctx.strokeStyle = stroke.tool === 'eraser' ? 'rgba(0,0,0,0)' : stroke.color;
+            ctx.strokeStyle = stroke.tool === 'eraser' ? 'rgba(0,0,0,1)' : stroke.color;
             ctx.lineWidth = stroke.size;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -276,7 +346,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
         // Draw current stroke
         if (currentStroke && currentStroke.points.length > 1) {
             ctx.beginPath();
-            ctx.strokeStyle = currentStroke.tool === 'eraser' ? 'rgba(0,0,0,0)' : currentStroke.color;
+            ctx.strokeStyle = currentStroke.tool === 'eraser' ? 'rgba(0,0,0,1)' : currentStroke.color;
             ctx.lineWidth = currentStroke.size;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
@@ -288,7 +358,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
         }
 
         ctx.globalCompositeOperation = 'source-over';
-    }, [strokes, currentStroke]);
+    }, [strokes, currentStroke, canvasSizeTick]);
 
     // Push to history
     const pushHistory = useCallback(() => {
@@ -369,17 +439,12 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
 
     // Get coordinates relative to image
     const getImageCoords = (e: React.MouseEvent) => {
-        const container = containerRef.current;
-        const image = imageRef.current;
-        if (!container || !image) return null;
-
-        const containerRect = container.getBoundingClientRect();
-        const imageRect = image.getBoundingClientRect();
-
-        const x = e.clientX - imageRect.left;
-        const y = e.clientY - imageRect.top;
-
-        return { x, y, imageWidth: imageRect.width, imageHeight: imageRect.height };
+        const canvas = canvasRef.current;
+        if (!canvas) return null;
+        const canvasRect = canvas.getBoundingClientRect();
+        const x = e.clientX - canvasRect.left;
+        const y = e.clientY - canvasRect.top;
+        return { x, y, imageWidth: canvasRect.width, imageHeight: canvasRect.height };
     };
 
     // Mouse handlers
@@ -390,6 +455,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
         const { x, y, imageWidth, imageHeight } = coords;
         const xPercent = (x / imageWidth) * 100;
         const yPercent = (y / imageHeight) * 100;
+
+        // Clicking empty canvas deselects any selected text
+        setSelectedTextId(null);
 
         // Text tool
         if (activeTool === 'text') {
@@ -404,6 +472,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
             };
             setTextLayers(prev => [...prev, newText]);
             setEditingTextId(newText.id);
+            setSelectedTextId(newText.id);
             pushHistory();
             return;
         }
@@ -476,6 +545,14 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
         const xPercent = (x / imageWidth) * 100;
         const yPercent = (y / imageHeight) * 100;
 
+        // Text drag
+        if (draggingTextId) {
+            const id = draggingTextId;
+            const off = dragOffsetRef.current;
+            setTextLayers(prev => prev.map(t => t.id === id ? { ...t, x: x - off.x, y: y - off.y } : t));
+            return;
+        }
+
         // Drawing
         if (currentStroke) {
             setCurrentStroke(prev => prev ? {
@@ -502,8 +579,99 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
     };
 
     const handleMouseUp = () => {
-        // Finish stroke
+        // Finish text drag
+        if (draggingTextId) {
+            setDraggingTextId(null);
+            pushHistory();
+        }
+        // Finish stroke. For eraser: rasterize any shapes/text the stroke
+        // passed over onto the canvas as pixels, drop them from their
+        // state arrays, and then append the eraser stroke so the render
+        // effect cuts through the now-flattened pixels. This gives partial
+        // erase instead of deleting whole shapes.
         if (currentStroke && currentStroke.points.length > 1) {
+            if (currentStroke.tool === 'eraser') {
+                const pts = currentStroke.points;
+                const r = currentStroke.size / 2;
+                const hitsText = (text: TextLayer) => {
+                    const w = Math.max(text.fontSize * 0.6 * Math.max(text.content.length, 1), text.fontSize);
+                    const h = text.fontSize * 1.3;
+                    const x1 = text.x - r, y1 = text.y - r;
+                    const x2 = text.x + w + r, y2 = text.y + h + r;
+                    return pts.some(p => p.x >= x1 && p.x <= x2 && p.y >= y1 && p.y <= y2);
+                };
+                const hitsShape = (s: ShapeLayer) => {
+                    const minX = Math.min(s.x1, s.x2) - r;
+                    const maxX = Math.max(s.x1, s.x2) + r;
+                    const minY = Math.min(s.y1, s.y2) - r;
+                    const maxY = Math.max(s.y1, s.y2) + r;
+                    return pts.some(p => p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY);
+                };
+                const textsHit = textLayers.filter(hitsText);
+                const shapesHit = shapes.filter(hitsShape);
+                if (textsHit.length || shapesHit.length) {
+                    const canvas = canvasRef.current;
+                    if (canvas && canvas.width > 0 && canvas.height > 0) {
+                        // Draw onto a temp canvas that already contains the
+                        // existing baked layer, then export as the new baked
+                        // layer. The stroke-render effect will composite it.
+                        const tmp = document.createElement('canvas');
+                        tmp.width = canvas.width;
+                        tmp.height = canvas.height;
+                        const ctx = tmp.getContext('2d');
+                        if (ctx) {
+                            if (bakedImgRef.current) ctx.drawImage(bakedImgRef.current, 0, 0);
+                            ctx.globalCompositeOperation = 'source-over';
+                            shapesHit.forEach(s => {
+                                ctx.strokeStyle = s.strokeColor;
+                                ctx.fillStyle = s.fillColor;
+                                ctx.lineWidth = s.strokeWidth;
+                                const minX = Math.min(s.x1, s.x2);
+                                const minY = Math.min(s.y1, s.y2);
+                                const w = Math.abs(s.x2 - s.x1);
+                                const h = Math.abs(s.y2 - s.y1);
+                                if (s.type === 'rectangle') {
+                                    if (s.filled) ctx.fillRect(minX, minY, w, h);
+                                    ctx.strokeRect(minX, minY, w, h);
+                                } else if (s.type === 'circle') {
+                                    const cx = (s.x1 + s.x2) / 2;
+                                    const cy = (s.y1 + s.y2) / 2;
+                                    ctx.beginPath();
+                                    ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
+                                    if (s.filled) ctx.fill();
+                                    ctx.stroke();
+                                } else if (s.type === 'line' || s.type === 'arrow') {
+                                    ctx.beginPath();
+                                    ctx.moveTo(s.x1, s.y1);
+                                    ctx.lineTo(s.x2, s.y2);
+                                    ctx.stroke();
+                                    if (s.type === 'arrow') {
+                                        const angle = Math.atan2(s.y2 - s.y1, s.x2 - s.x1);
+                                        const head = Math.max(8, s.strokeWidth * 3);
+                                        ctx.beginPath();
+                                        ctx.moveTo(s.x2, s.y2);
+                                        ctx.lineTo(s.x2 - head * Math.cos(angle - Math.PI / 6), s.y2 - head * Math.sin(angle - Math.PI / 6));
+                                        ctx.moveTo(s.x2, s.y2);
+                                        ctx.lineTo(s.x2 - head * Math.cos(angle + Math.PI / 6), s.y2 - head * Math.sin(angle + Math.PI / 6));
+                                        ctx.stroke();
+                                    }
+                                }
+                            });
+                            textsHit.forEach(t => {
+                                ctx.fillStyle = t.color;
+                                ctx.font = `${t.fontSize}px ${t.fontFamily}`;
+                                ctx.textBaseline = 'top';
+                                ctx.fillText(t.content, t.x, t.y);
+                            });
+                            setBakedLayer(tmp.toDataURL('image/png'));
+                        }
+                    }
+                    const shapeIds = new Set(shapesHit.map(s => s.id));
+                    const textIds = new Set(textsHit.map(t => t.id));
+                    if (shapeIds.size) setShapes(prev => prev.filter(s => !shapeIds.has(s.id)));
+                    if (textIds.size) setTextLayers(prev => prev.filter(t => !textIds.has(t.id)));
+                }
+            }
             setStrokes(prev => [...prev, currentStroke]);
             pushHistory();
         }
@@ -816,6 +984,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                     </div>
                 )}
 
+                {/* Text properties popover — floats just above the selected text */}
+
                 {/* Canvas Area */}
                 <div
                     ref={containerRef}
@@ -841,12 +1011,10 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                             alt="Editing"
                             draggable={false}
                             onLoad={() => {
-                                const img = imageRef.current;
-                                const canvas = canvasRef.current;
-                                if (img && canvas) {
-                                    canvas.width = img.width;
-                                    canvas.height = img.height;
-                                }
+                                // Canvas size is driven by ResizeObserver tracking
+                                // the canvas element's rendered CSS size. Mouse
+                                // coords are 1:1 with canvas internal coords.
+                                setCanvasSizeTick(t => t + 1);
                             }}
                         />
 
@@ -955,20 +1123,97 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                         )}
 
                         {/* Text Layers */}
-                        {textLayers.map(text => (
+                        {textLayers.map(text => {
+                            const isSelected = selectedTextId === text.id || editingTextId === text.id;
+                            return (
                             <div
                                 key={text.id}
-                                className="absolute cursor-move select-none"
+                                className={`absolute select-none ${activeTool === 'text' ? 'cursor-text' : 'cursor-move'}`}
                                 style={{
                                     left: text.x,
                                     top: text.y,
                                     fontSize: text.fontSize,
                                     color: text.color,
                                     fontFamily: text.fontFamily,
-                                    zIndex: 10
+                                    zIndex: 10,
+                                    padding: '2px 4px',
+                                    outline: isSelected ? '1px dashed rgba(96,165,250,0.8)' : 'none',
+                                    outlineOffset: '2px',
                                 }}
-                                onDoubleClick={() => setEditingTextId(text.id)}
+                                onMouseDown={(e) => {
+                                    // Don't let this click bubble up to the canvas container's
+                                    // handleMouseDown, which would spawn a NEW text layer when
+                                    // the user is actually trying to click/edit/drag this one.
+                                    e.stopPropagation();
+                                    setSelectedTextId(text.id);
+                                    if (editingTextId === text.id) return; // already editing, let input receive focus
+                                    const coords = getImageCoords(e);
+                                    if (coords) {
+                                        dragOffsetRef.current = { x: coords.x - text.x, y: coords.y - text.y };
+                                    }
+                                    setDraggingTextId(text.id);
+                                }}
+                                onDoubleClick={(e) => { e.stopPropagation(); setEditingTextId(text.id); }}
                             >
+                                {isSelected && (
+                                    <>
+                                        <button
+                                            onMouseDown={(e) => { e.stopPropagation(); }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTextLayers(prev => prev.filter(t => t.id !== text.id));
+                                                setSelectedTextId(null);
+                                                setEditingTextId(null);
+                                                pushHistory();
+                                            }}
+                                            className="absolute -top-3 -left-3 w-5 h-5 rounded-full bg-red-500 hover:bg-red-400 text-white flex items-center justify-center shadow"
+                                            title="Delete text"
+                                            style={{ zIndex: 11 }}
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                        {/* Floating properties popover — above the text, compact */}
+                                        <div
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                            className="absolute flex items-center gap-2 px-2 py-1 rounded-md bg-gray-900/95 border border-gray-700 shadow-lg text-xs whitespace-nowrap"
+                                            style={{ bottom: 'calc(100% + 10px)', left: 0, zIndex: 12 }}
+                                        >
+                                            <select
+                                                value={text.fontFamily}
+                                                onChange={(e) => setTextLayers(prev => prev.map(x => x.id === text.id ? { ...x, fontFamily: e.target.value } : x))}
+                                                onBlur={pushHistory}
+                                                className="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-xs"
+                                            >
+                                                {['Arial','Helvetica','Georgia','Times New Roman','Courier New','Verdana','Impact','Comic Sans MS','Trebuchet MS','Palatino'].map(f => (
+                                                    <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>
+                                                ))}
+                                            </select>
+                                            <input
+                                                type="number"
+                                                min={6}
+                                                max={512}
+                                                value={text.fontSize}
+                                                onChange={(e) => setTextLayers(prev => prev.map(x => x.id === text.id ? { ...x, fontSize: Math.max(6, Math.min(512, parseInt(e.target.value) || text.fontSize)) } : x))}
+                                                onBlur={pushHistory}
+                                                className="w-12 bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-xs"
+                                                title="Size"
+                                            />
+                                            <input
+                                                type="color"
+                                                value={text.color}
+                                                onChange={(e) => setTextLayers(prev => prev.map(x => x.id === text.id ? { ...x, color: e.target.value } : x))}
+                                                onBlur={pushHistory}
+                                                className="w-6 h-6 rounded cursor-pointer"
+                                                title="Color"
+                                            />
+                                            <button
+                                                onClick={() => setEditingTextId(text.id)}
+                                                className="px-1.5 py-0.5 rounded bg-blue-600 hover:bg-blue-500"
+                                                title="Edit text"
+                                            >Edit</button>
+                                        </div>
+                                    </>
+                                )}
                                 {editingTextId === text.id ? (
                                     <input
                                         type="text"
@@ -979,7 +1224,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                                         onBlur={() => { setEditingTextId(null); pushHistory(); }}
                                         onKeyDown={(e) => { if (e.key === 'Enter') { setEditingTextId(null); pushHistory(); } }}
                                         autoFocus
-                                        className="bg-black/50 border border-blue-400 outline-none px-2"
+                                        className="bg-transparent border-none outline-none px-0"
                                         style={{
                                             fontSize: text.fontSize,
                                             color: text.color,
@@ -987,10 +1232,11 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                                         }}
                                     />
                                 ) : (
-                                    <span className="px-2 py-1 bg-black/30 rounded">{text.content}</span>
+                                    <span className="px-0">{text.content}</span>
                                 )}
                             </div>
-                        ))}
+                        );
+                        })}
 
                         {/* Vignette Effect */}
                         {adjustments.vignette > 0 && (
@@ -1000,6 +1246,15 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                                     boxShadow: `inset 0 0 ${adjustments.vignette * 2.5}px ${adjustments.vignette * 1.5}px rgba(0,0,0,0.9)`
                                 }}
                             />
+                        )}
+
+                        {/* Generative fill in-progress overlay */}
+                        {isFilling && (
+                            <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center text-white gap-2 pointer-events-none">
+                                <RefreshCw size={40} className="animate-spin text-blue-300" />
+                                <div className="text-sm font-medium">Generating fill…</div>
+                                <div className="text-[10px] text-gray-300">Inpainting selected region with {fillProvider}</div>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -1088,12 +1343,36 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                             </div>
                         )}
 
-                        {/* Selection Actions */}
-                        {selection && onGenerativeFill && (
+                        {/* Selection Actions — panel stays mounted while
+                            onGenerativeFill is available so the model picker
+                            doesn't vanish between selections. */}
+                        {onGenerativeFill && (
                             <div className="border-t border-gray-700 pt-4 space-y-2">
                                 <h5 className="font-semibold text-sm flex items-center gap-2">
                                     <Sparkles size={14} /> Generative Fill
                                 </h5>
+                                {fillModels.length > 0 && (
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] uppercase text-gray-400">Model</label>
+                                        <select
+                                            value={fillModel}
+                                            onChange={(e) => {
+                                                const picked = fillModels.find(m => m.value === e.target.value);
+                                                if (picked) {
+                                                    setFillModel(picked.value);
+                                                    setFillProvider(picked.provider);
+                                                }
+                                            }}
+                                            className="w-full bg-gray-700 rounded px-2 py-1 text-xs"
+                                        >
+                                            {fillModels.map(m => (
+                                                <option key={`${m.provider}-${m.value}`} value={m.value}>
+                                                    {m.display_name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                                 <input
                                     type="text"
                                     value={fillPrompt}
@@ -1103,18 +1382,39 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                                 />
                                 <div className="flex gap-2">
                                     <button
-                                        onClick={() => onGenerativeFill(selection, fillPrompt)}
-                                        className="flex-1 bg-blue-600 rounded py-1 text-sm hover:bg-blue-700"
+                                        onClick={async () => {
+                                            if (!selection || !fillPrompt || isFilling) return;
+                                            setIsFilling(true);
+                                            try {
+                                                await onGenerativeFill(selection, fillPrompt, { model: fillModel, provider: fillProvider });
+                                            } finally {
+                                                setIsFilling(false);
+                                            }
+                                        }}
+                                        disabled={!selection || !fillPrompt || isFilling}
+                                        className="flex-1 bg-blue-600 rounded py-1 text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                                        title={!selection ? 'Make a selection first (rect-select or lasso)' : ''}
                                     >
-                                        Generate
+                                        {isFilling ? (
+                                            <>
+                                                <RefreshCw size={12} className="animate-spin" />
+                                                Generating…
+                                            </>
+                                        ) : 'Generate'}
                                     </button>
                                     <button
                                         onClick={() => setSelection(null)}
-                                        className="flex-1 bg-gray-700 rounded py-1 text-sm hover:bg-gray-600"
+                                        disabled={!selection || isFilling}
+                                        className="flex-1 bg-gray-700 rounded py-1 text-sm hover:bg-gray-600 disabled:opacity-50"
                                     >
                                         Clear
                                     </button>
                                 </div>
+                                {!selection && (
+                                    <div className="text-[10px] text-amber-400/80">
+                                        Pick the rect-select or lasso tool and draw a region to fill.
+                                    </div>
+                                )}
                             </div>
                         )}
 
