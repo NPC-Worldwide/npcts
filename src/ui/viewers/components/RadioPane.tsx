@@ -118,11 +118,17 @@ export interface RadioPaneProps {
     fetchFn?: (url: string, options?: any) => Promise<{ ok: boolean; status: number; data: any; error?: string }>;
     /** List available serial ports */
     listPortsFn?: () => Promise<{ path: string; manufacturer?: string }[]>;
+    /** Callback to show markers on the GIS map */
+    onShowOnMap?: (markers: { lat: number; lng: number; label: string; color?: string }[]) => void;
 }
+
+const EXAMPLE_CALLSIGNS = ['ISS', 'W1AW', 'K6LY', 'W3ADO', 'N0NBH', 'VE3HOA', 'W4EHW', 'KJ6PYI'];
+
 
 // ---- Component ----
 
-export const RadioPane: React.FC<RadioPaneProps> = ({ className, onClose, fetchFn, listPortsFn }) => {
+export const RadioPane: React.FC<RadioPaneProps> = ({ className, onClose, fetchFn, listPortsFn, onShowOnMap }) => {
+    const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
     // Use proxy fetch if provided, fall back to browser fetch with JSON parse
     const doFetch = useCallback(async (url: string, options?: any): Promise<{ ok: boolean; status: number; data: any; error?: string }> => {
         if (fetchFn) return fetchFn(url, options);
@@ -184,27 +190,38 @@ export const RadioPane: React.FC<RadioPaneProps> = ({ className, onClose, fetchF
         setRepeaterLoading(true);
         setRepeaterError('');
         try {
-            // RepeaterBook API (proxied or direct)
-            const url = `https://www.repeaterbook.com/api/export.php?lat=${lat}&lng=${lng}&distance=${repeaterSearch.distance}&band=${repeaterSearch.band}`;
+            // HearHam API (free, no auth required)
+            const url = `https://hearham.com/api/repeaters/v1?lat=${lat}&lng=${lng}&distance=${repeaterSearch.distance}`;
             const resp = await doFetch(url);
             if (!resp.ok) throw new Error(resp.error || `API returned ${resp.status}`);
             const data = typeof resp.data === 'string' ? JSON.parse(resp.data) : resp.data;
-            const results = (data.results || data || []).map((r: any) => ({
-                callsign: r.Callsign || r.callsign || '',
-                frequency: r.Frequency || r.frequency || '',
-                offset: r.Input_Freq || r.offset || '',
-                tone: r.PL || r.tone || '',
-                mode: r.FM_Analog || r.mode || 'FM',
-                city: r.Nearest_City || r.city || '',
-                state: r.State || r.state || '',
-                county: r.County || r.county || '',
-                lat: parseFloat(r.Lat || r.lat || 0),
-                lng: parseFloat(r.Long || r.lng || 0),
-                use: r.Use || r.use || 'OPEN',
-                operational_status: r.Operational_Status || r.status || '',
-                distance: r.Distance ? parseFloat(r.Distance) : undefined,
+            const allResults = (Array.isArray(data) ? data : data.results || []).map((r: any) => ({
+                callsign: r.callsign || '',
+                frequency: r.frequency ? (r.frequency / 1000000).toFixed(4) : '',
+                offset: r.offset ? (r.offset / 1000000).toFixed(1) : '',
+                tone: r.encode || r.decode || '',
+                mode: r.mode || 'FM',
+                city: r.city || '',
+                state: '',
+                county: '',
+                lat: parseFloat(r.latitude || 0),
+                lng: parseFloat(r.longitude || 0),
+                use: r.restriction || 'OPEN',
+                operational_status: r.operational ? 'On-air' : 'Off-air',
+                distance: undefined,
             }));
-            setRepeaterResults(results);
+            // Filter by band if specified
+            const bandFilter = repeaterSearch.band;
+            const results = bandFilter && bandFilter !== '' ? allResults.filter((r: any) => {
+                const freq = parseFloat(r.frequency);
+                if (bandFilter === '14' && freq >= 144 && freq <= 148) return true;
+                if (bandFilter === '44' && freq >= 420 && freq <= 450) return true;
+                if (bandFilter === '22' && freq >= 222 && freq <= 225) return true;
+                if (bandFilter === '90' && freq >= 902 && freq <= 928) return true;
+                if (bandFilter === '12' && freq >= 1240 && freq <= 1300) return true;
+                return !bandFilter;
+            }) : allResults;
+            setRepeaterResults(results.slice(0, 100));
             if (results.length === 0) setRepeaterError('No repeaters found in range');
         } catch (err: any) {
             setRepeaterError(`Search failed: ${err.message}. Try a CORS proxy or check the API.`);
@@ -471,6 +488,21 @@ export const RadioPane: React.FC<RadioPaneProps> = ({ className, onClose, fetchF
                         </div>
                         {repeaterError && <div style={s({ color: '#f59e0b', fontSize: '0.7rem', marginBottom: 8 })}>{repeaterError}</div>}
                         {repeaterResults.length > 0 && (
+                            <div style={s({ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' })}>
+                                <span style={s({ fontSize: '0.7rem', color: '#94a3b8' })}>{repeaterResults.length} repeaters</span>
+                                <button onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+                                    style={s({ padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: '#06b6d4', fontSize: '0.65rem', cursor: 'pointer' })}>
+                                    {viewMode === 'list' ? '🗺️ Map' : '📋 List'}
+                                </button>
+                                {onShowOnMap && (
+                                    <button onClick={() => onShowOnMap(repeaterResults.filter(r => r.lat && r.lng).map(r => ({ lat: r.lat, lng: r.lng, label: `${r.callsign} ${r.frequency}`, color: '#10b981' })))}
+                                        style={s({ padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(16,185,129,0.2)', color: '#10b981', fontSize: '0.65rem', cursor: 'pointer' })}>
+                                        📍 Show All on GIS Map
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        {repeaterResults.length > 0 && viewMode === 'list' && (
                             <table style={s({ width: '100%', fontSize: '0.7rem', borderCollapse: 'collapse' })}>
                                 <thead><tr style={s({ borderBottom: '1px solid rgba(255,255,255,0.1)', color: '#64748b' })}>
                                     <th style={s({ textAlign: 'left', padding: '4px 6px' })}>Callsign</th>
@@ -551,9 +583,24 @@ export const RadioPane: React.FC<RadioPaneProps> = ({ className, onClose, fetchF
                                 ))}
                             </div>
                         )}
+                        {aprsResults.length > 0 && onShowOnMap && (
+                            <button onClick={() => onShowOnMap(aprsResults.filter(st => st.lat && st.lng).map(st => ({ lat: st.lat, lng: st.lng, label: st.name, color: '#06b6d4' })))}
+                                style={s({ padding: '4px 10px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(6,182,212,0.2)', color: '#06b6d4', fontSize: '0.65rem', cursor: 'pointer', marginBottom: 8 })}>
+                                📍 Show All on GIS Map
+                            </button>
+                        )}
                         {aprsResults.length === 0 && !aprsLoading && (
-                            <div style={s({ color: '#64748b', textAlign: 'center', marginTop: 40 })}>
-                                Search for a callsign to see APRS position data from aprs.fi
+                            <div style={s({ color: '#64748b', textAlign: 'center', marginTop: 24 })}>
+                                <div style={s({ marginBottom: 12 })}>Search for a callsign to see APRS position data</div>
+                                <div style={s({ fontSize: '0.65rem', color: '#475569', marginBottom: 8 })}>Try these examples:</div>
+                                <div style={s({ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'center' })}>
+                                    {EXAMPLE_CALLSIGNS.map(cs => (
+                                        <button key={cs} onClick={() => { setAprsCallsign(cs); searchAPRS(cs); }}
+                                            style={s({ padding: '3px 8px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.2)', color: '#06b6d4', fontSize: '0.7rem', cursor: 'pointer', fontFamily: 'monospace' })}>
+                                            {cs}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
