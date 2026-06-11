@@ -311,6 +311,144 @@ export class Jinx {
         },
       },
     };
+  /**
+   * Convert to a tool definition (for LLM tool use)
+   */
+  toToolDef(): Record<string, any> {
+    const properties: Record<string, any> = {};
+    const required: string[] = [];
+
+    for (const input of this.inputs) {
+      if (typeof input === 'string') {
+        properties[input] = { type: 'string', description: `Parameter: ${input}` };
+        required.push(input);
+      } else if (typeof input === 'object') {
+        const [inputName, defaultValue] = Object.entries(input)[0];
+        properties[inputName] = {
+          type: 'string',
+          description: `Parameter: ${inputName}${defaultValue !== '' ? ` (default: ${defaultValue})` : ''}`,
+        };
+      }
+    }
+
+    return {
+      type: 'function',
+      function: {
+        name: this.jinx_name,
+        description: this.description || `Jinx: ${this.jinx_name}`,
+        parameters: {
+          type: 'object',
+          properties,
+          required,
+        },
+      },
+    };
+  }
+
+  /**
+   * Create a Jinx from an MCP tool definition.
+   * Mirrors npcpy's Jinx.from_mcp() class method.
+   *
+   * @param mcpTool - MCP tool object with name, description, and inputSchema
+   * @returns A new Jinx instance configured to call the MCP tool
+   */
+  static fromMcp(mcpTool: {
+    name: string;
+    description?: string;
+    inputSchema?: {
+      type?: string;
+      properties?: Record<string, any>;
+      required?: string[];
+    };
+  }): Jinx {
+    const inputs: JinxInput[] = [];
+    const paramNames: string[] = [];
+
+    // Extract parameters from MCP inputSchema
+    if (mcpTool.inputSchema?.properties) {
+      for (const [paramName, paramDef] of Object.entries(mcpTool.inputSchema.properties)) {
+        paramNames.push(paramName);
+        const paramType = (paramDef as any).type || 'string';
+        const paramDesc = (paramDef as any).description || '';
+
+        // Build input definition with type info in description
+        const inputDef: JinxInput = {};
+        let description = paramDesc;
+        if (paramType && paramType !== 'string') {
+          description = `[${paramType}] ${paramDesc}`;
+        }
+        inputDef[paramName] = description;
+        inputs.push(inputDef);
+      }
+    }
+
+    // Build the step code that calls the MCP tool
+    const argsMapping = paramNames.map(name => `      ${name}: context.${name}`).join(',\n');
+
+    const stepCode = `
+// Call MCP tool: ${mcpTool.name}
+const result = await mcpCall('${mcpTool.name}', {
+${argsMapping}
+});
+context.output = result;
+`;
+
+    const jinxData: JinxDefinition = {
+      jinx_name: mcpTool.name,
+      description: mcpTool.description || `MCP Tool: ${mcpTool.name}`,
+      inputs,
+      steps: [
+        {
+          name: 'mcp_call',
+          engine: 'node',
+          code: stepCode,
+        },
+      ],
+    };
+
+    return new Jinx(jinxData);
+  }
+
+  /**
+   * Create a Jinx from a simple function signature.
+   * Utility method for wrapping functions as jinxes.
+   */
+  static fromFunction(
+    name: string,
+    fn: (...args: any[]) => any,
+    options?: {
+      description?: string;
+      inputNames?: string[];
+    }
+  ): Jinx {
+    const funcStr = fn.toString();
+    const paramMatch = funcStr.match(/\(([^)]*)\)/);
+    const params = paramMatch ? paramMatch[1].split(',').map(p => p.trim()).filter(Boolean) : [];
+
+    const inputs: JinxInput[] = options?.inputNames || params.map((p, i) => ({ [p]: '' }));
+
+    const argsMapping = params.map((p, i) => `      args[${i}]`).join(',\n');
+
+    const stepCode = `
+const fn = ${funcStr};
+const result = fn(${argsMapping});
+context.output = result;
+`;
+
+    const jinxData: JinxDefinition = {
+      jinx_name: name,
+      description: options?.description || `Function: ${name}`,
+      inputs,
+      steps: [
+        {
+          name: 'function_call',
+          engine: 'node',
+          code: stepCode,
+        },
+      ],
+    };
+
+    return new Jinx(jinxData);
   }
 
   /**
