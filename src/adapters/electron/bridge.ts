@@ -3,6 +3,7 @@ import type { BrowserClient } from "../../core/browser";
 import type { ChatClient } from "../../core/chat";
 import type { FileSystemClient } from "../../core/files";
 import type { JobClient } from "../../core/jobs";
+import { resolveModelProvider, type NPC, type Team } from "../../core/npc";
 
 type ElectronApi = Record<string, any> | undefined;
 
@@ -28,13 +29,23 @@ const createChatClient = (rawApi: ElectronApi): ChatClient => {
     listMessages: (conversationId: string) =>
       api.getConversationMessages?.(conversationId) ?? Promise.resolve([]),
     sendMessage: async (request) => {
-      const modelId = typeof request.model === "string" ? request.model : request.model.id;
+      // Resolve model/provider from NPC/team if present
+      const resolved = resolveModelProvider(
+        (request.context?.npc as NPC) || undefined,
+        (request.context?.team as Team) || undefined,
+        typeof request.model === "string" ? request.model : request.model.id,
+        (request.context?.provider as string) || undefined
+      );
+      const modelId = resolved.model || "";
+      const provider = resolved.provider || "";
+
       if (request.stream && api.onStreamData) {
-        // The host should expose a stream API that yields chunks; we forward the generator when available.
         const generator = api.executeCommandStream?.({
           commandstr: request.prompt,
           conversationId: request.conversationId,
           model: modelId,
+          provider,
+          npc: (request.context?.npc as NPC)?.name,
         });
         if (generator) return generator;
       }
@@ -42,6 +53,7 @@ const createChatClient = (rawApi: ElectronApi): ChatClient => {
         conversationId: request.conversationId,
         message: request.prompt,
         model: modelId,
+        provider,
         attachments: request.attachments,
       });
       return msg;
