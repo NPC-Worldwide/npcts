@@ -799,28 +799,33 @@ export class Team {
   }
 
   private _load_team_context_file(): void {
-    if (!this.team_path || !fsModule) return;
-    const ctxFile = pathModule?.join(this.team_path, 'team.ctx');
-    if (!ctxFile || !fsModule.existsSync(ctxFile)) return;
+    if (!this.team_path || !fsModule || !pathModule) return;
     try {
-      const data = loadYamlFile(ctxFile);
-      if (!data || typeof data !== 'object') return;
-      if (data.model) this.model = data.model;
-      if (data.provider) this.provider = data.provider;
-      if (data.api_url) this.api_url = data.api_url;
-      if (data.api_key) this.api_key = data.api_key;
-      if (data.forenpc) this.forenpc_name = data.forenpc;
-      if (data.npcs && Array.isArray(data.npcs)) {
-      }
-      if (data.jinxes !== undefined) {
-        this.team_jinxes_spec = data.jinxes;
-      }
-      if (data.mcp_servers && Array.isArray(data.mcp_servers)) {
-        this.mcp_servers = data.mcp_servers;
-      }
-      if (data.skills_directory) this.skills_directory = data.skills_directory;
-      if (data.external_jinx_teams && Array.isArray(data.external_jinx_teams)) {
-        this.external_jinx_teams = data.external_jinx_teams;
+      const files = fsModule.readdirSync(this.team_path);
+      for (const fname of files) {
+        if (fname.endsWith('.ctx')) {
+          const ctxFile = pathModule.join(this.team_path, fname);
+          const data = loadYamlFile(ctxFile);
+          if (!data || typeof data !== 'object') return;
+          if (data.model) this.model = data.model;
+          if (data.provider) this.provider = data.provider;
+          if (data.api_url) this.api_url = data.api_url;
+          if (data.api_key) this.api_key = data.api_key;
+          if (data.forenpc) this.forenpc_name = data.forenpc;
+          if (data.npcs && Array.isArray(data.npcs)) {
+          }
+          if (data.jinxes !== undefined) {
+            this.team_jinxes_spec = data.jinxes;
+          }
+          if (data.mcp_servers && Array.isArray(data.mcp_servers)) {
+            this.mcp_servers = data.mcp_servers;
+          }
+          if (data.skills_directory) this.skills_directory = data.skills_directory;
+          if (data.external_jinx_teams && Array.isArray(data.external_jinx_teams)) {
+            this.external_jinx_teams = data.external_jinx_teams;
+          }
+          return;
+        }
       }
     } catch {
     }
@@ -1206,7 +1211,7 @@ export function resolveTeamPath(teamYamlPath: string, teamKey: string): string |
   const teams = data?.teams || {};
   const rawPath = teams[teamKey];
   if (!rawPath) return null;
-  return String(rawPath).replace(/^~(?=/|$)/, osModule.homedir());
+  return String(rawPath).replace(/^~(?=\/|$)/, osModule.homedir());
 }
 
 export function loadRegisteredTeams(teamYamlPath: string): Record<string, string> {
@@ -1219,7 +1224,7 @@ export function loadRegisteredTeams(teamYamlPath: string): Record<string, string
   const data = yaml.load(content) as Record<string, any>;
   const teams: Record<string, string> = {};
   for (const [k, v] of Object.entries(data?.teams || {})) {
-    teams[k] = String(v).replace(/^~(?=/|$)/, osModule.homedir());
+    teams[k] = String(v).replace(/^~(?=\/|$)/, osModule.homedir());
   }
   return teams;
 }
