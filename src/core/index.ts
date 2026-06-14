@@ -9,5 +9,4 @@ export * from './browser';
 export * from './jobs';
 export * from './database';
 export * from './spatial';
-export * from './jinx';
 export * from './npc';
