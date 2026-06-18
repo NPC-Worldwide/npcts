@@ -9,6 +9,31 @@
  * ```yaml
  * jinx_name: tile.db_tool
  * description: Opens Database Tool pane
+ * file_context:
+ *   - "*.ts"
+ *   - "README.md"
+ * inputs:
+ *   - label: "DB Tool"
+ *   - icon: "Database"
+ * steps:
+ *   - name: render
+ *     engine: tsx
+ *     code: |
+ *       export default function({ actions }) {
+ *         return <button onClick={() => actions.createDBToolPane()}>DB</button>
+ *       }
+ * ```
+ */
+ * Jinx - TypeScript/TSX workflow engine for npcts
+ *
+ * Mirrors the Python jinx system in npcpy but handles:
+ * - engine: tsx - React components, transpiled with esbuild-wasm
+ * - engine: node - Node.js code execution
+ *
+ * Jinx format (YAML):
+ * ```yaml
+ * jinx_name: tile.db_tool
+ * description: Opens Database Tool pane
  * inputs:
  *   - label: "DB Tool"
  *   - icon: "Database"
@@ -25,6 +50,12 @@
 import * as esbuild from 'esbuild-wasm';
 import yaml from 'js-yaml';
 import React from 'react';
+import path from 'path';
+import { promises as fs } from 'fs';
+
+// Track esbuild initialization
+let esbuildInitialized = false;
+let esbuildInitPromise: Promise<void> | null = null;
 
 // Track esbuild initialization
 let esbuildInitialized = false;
@@ -54,8 +85,21 @@ export interface JinxInput {
 }
 
 /**
+ * Parsed file entry for file_context
+ */
+export interface ParsedFile {
+  path: string;
+  content: string;
+
+/**
  * Step definition
  */
+export interface JinxStep {
+  name: string;
+  engine: 'tsx' | 'node' | string;
+  code: string;
+}
+
 export interface JinxStep {
   name: string;
   engine: 'tsx' | 'node' | string;
@@ -68,11 +112,10 @@ export interface JinxStep {
 export interface JinxDefinition {
   jinx_name: string;
   description?: string;
+  file_context?: string[];
   inputs?: JinxInput[];
   steps: JinxStep[];
   _source_path?: string;
-}
-
 /**
  * Execution context passed to jinx code
  */
@@ -91,13 +134,17 @@ export interface TsxStepResult {
 
 /**
  * Jinx class - loads and executes jinx workflows
+/**
+ * Jinx class - loads and executes jinx workflows
  */
 export class Jinx {
   jinx_name: string;
   description: string;
+  file_context: string[];
   inputs: JinxInput[];
   steps: JinxStep[];
   _source_path?: string;
+  parsedFiles: ParsedFile[];
 
   constructor(data: JinxDefinition | string, sourcePath?: string) {
     if (typeof data === 'string') {
@@ -110,6 +157,7 @@ export class Jinx {
     if (sourcePath) {
       this._source_path = sourcePath;
     }
+    this.parsedFiles = [];
   }
 
   private _loadFromData(data: JinxDefinition): void {
@@ -119,12 +167,134 @@ export class Jinx {
 
     this.jinx_name = data.jinx_name;
     this.description = data.description || '';
+    this.file_context = data.file_context || [];
     this.inputs = data.inputs || [];
     this.steps = data.steps || [];
     this._source_path = data._source_path;
+    this.parsedFiles = [];
   }
 
   /**
+   * Parse file_context patterns and load file contents
+   */
+  private async _parseFilePatterns(): Promise<ParsedFile[]> {
+    if (!this._source_path || this.file_context.length === 0) {
+      return [];
+    }
+
+    const basePath = path.dirname(this._source_path);
+    const parsedFiles: ParsedFile[] = [];
+
+    for (const pattern of this.file_context) {
+      const matchingFiles = await this._findMatchingFiles(basePath, pattern);
+      for (const filePath of matchingFiles) {
+        const content = await this._loadFileContent(filePath);
+        if (content !== null) {
+          parsedFiles.push({ path: filePath, content });
+        }
+      }
+    }
+
+    return parsedFiles;
+  }
+
+  /**
+   * Find files matching a glob-like pattern
+   */
+  private async _findMatchingFiles(basePath: string, pattern: string): Promise<string[]> {
+    const results: string[] = [];
+    
+    try {
+      // Handle glob patterns (simplified implementation)
+      if (pattern.includes('*')) {
+        // Recursively find files matching pattern
+        await this._findFilesRecursive(basePath, pattern, results);
+      } else {
+        // Direct file path
+        const fullPath = path.join(basePath, pattern);
+        try {
+          await fs.access(fullPath);
+          results.push(fullPath);
+        } catch {
+          // File doesn't exist, skip
+        }
+      }
+    } catch (err) {
+      console.warn(`Error finding files for pattern '${pattern}':`, err);
+    }
+
+    return results;
+  }
+
+  /**
+   * Recursively find files matching a glob pattern
+   */
+  private async _findFilesRecursive(
+    dir: string,
+    pattern: string,
+    results: string[]
+  ): Promise<void> {
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        
+        if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+          await this._findFilesRecursive(fullPath, pattern, results);
+        } else if (entry.isFile()) {
+          // Simple glob matching
+          if (this._matchGlob(entry.name, pattern) || this._matchGlob(fullPath, pattern)) {
+            results.push(fullPath);
+          }
+        }
+      }
+    } catch (err) {
+      // Directory access error, skip
+    }
+  }
+
+  /**
+   * Simple glob pattern matching
+   */
+  private _matchGlob(filePath: string, pattern: string): boolean {
+    // Convert glob pattern to regex
+    const regexPattern = pattern
+      .replace(/\*\*/g, '{{GLOBSTAR}}')
+      .replace(/\*/g, '[^/\\]*')
+      .replace(/\?/g, '.')
+      .replace(/\{\{GLOBSTAR\}\}/g, '.*');
+    
+    const regex = new RegExp(regexPattern.replace(/\\/g, '\\\\'));
+    return regex.test(filePath);
+  }
+
+  /**
+   * Load content of a file
+   */
+  private async _loadFileContent(filePath: string): Promise<string | null> {
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      return content;
+    } catch (err) {
+      console.warn(`Failed to load file ${filePath}:`, err);
+      return null;
+    }
+  }
+
+  /**
+   * Format parsed files as context string
+   */
+  private _formatParsedFilesContext(files: ParsedFile[]): string {
+    if (files.length === 0) {
+      return '';
+    }
+
+    const sections = files.map(file => {
+      return `---\nFile: ${file.path}\n---\n${file.content}`;
+    });
+
+    return `\n\n<files_context>\n${sections.join('\n\n')}\n</files_context>`;
    * Get default input values from the inputs definition
    */
   getDefaultInputs(): Record<string, any> {
@@ -141,6 +311,8 @@ export class Jinx {
 
   /**
    * Execute all steps in the jinx
+  /**
+   * Execute all steps in the jinx
    */
   async execute(
     inputValues: Record<string, any> = {},
@@ -148,7 +320,12 @@ export class Jinx {
   ): Promise<JinxContext> {
     await initJinxEngine();
 
-    // Build initial context with defaults + provided inputs
+    // Parse file_context if defined
+    if (this.file_context.length > 0 && this.parsedFiles.length === 0) {
+      this.parsedFiles = await this._parseFilePatterns();
+    }
+
+    // Build initial context with defaults + provided inputs + file_context
     const context: JinxContext = {
       ...this.getDefaultInputs(),
       ...inputValues,
@@ -156,13 +333,17 @@ export class Jinx {
       output: null,
     };
 
+    // Inject file_context into the context
+    if (this.parsedFiles.length > 0) {
+      context.file_context = this._formatParsedFilesContext(this.parsedFiles);
+    }
+
     // Execute each step
     for (const step of this.steps) {
       await this._executeStep(step, context);
     }
 
     return context;
-  }
 
   /**
    * Execute a single step and get a React component (for tsx engine)
@@ -173,12 +354,22 @@ export class Jinx {
   ): Promise<TsxStepResult | null> {
     await initJinxEngine();
 
+    // Parse file_context if defined
+    if (this.file_context.length > 0 && this.parsedFiles.length === 0) {
+      this.parsedFiles = await this._parseFilePatterns();
+    }
+
     const context: JinxContext = {
       ...this.getDefaultInputs(),
       ...inputValues,
       ...extraContext,
       output: null,
     };
+
+    // Inject file_context into the context
+    if (this.parsedFiles.length > 0) {
+      context.file_context = this._formatParsedFilesContext(this.parsedFiles);
+    }
 
     // Find the tsx step (usually named 'render')
     const tsxStep = this.steps.find(s => s.engine === 'tsx');
@@ -188,7 +379,6 @@ export class Jinx {
 
     const Component = await this._executeTsxStep(tsxStep, context);
     return Component ? { Component, props: context } : null;
-  }
 
   private async _executeStep(step: JinxStep, context: JinxContext): Promise<void> {
     const { engine, code, name } = step;
@@ -315,15 +505,17 @@ export class Jinx {
 
   /**
    * Serialize back to YAML
+  /**
+   * Serialize back to YAML
    */
   toYaml(): string {
     return yaml.dump({
       jinx_name: this.jinx_name,
       description: this.description,
+      file_context: this.file_context,
       inputs: this.inputs,
       steps: this.steps,
     });
-  }
 }
 
 /**
