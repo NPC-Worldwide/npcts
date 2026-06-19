@@ -12,11 +12,15 @@
  * inputs:
  *   - label: "DB Tool"
  *   - icon: "Database"
+ * file_context:
+ *   - pattern: "*.sql"
+ *     base_path: "./queries"
+ *     recursive: true
  * steps:
  *   - name: render
  *     engine: tsx
  *     code: |
- *       export default function({ actions }) {
+ *       export default function({ actions, file_context }) {
  *         return <button onClick={() => actions.createDBToolPane()}>DB</button>
  *       }
  * ```
@@ -54,6 +58,15 @@ export interface JinxInput {
 }
 
 /**
+ * File context pattern definition
+ */
+export interface FileContextPattern {
+  pattern: string;
+  base_path?: string;
+  recursive?: boolean;
+}
+
+/**
  * Step definition
  */
 export interface JinxStep {
@@ -69,6 +82,7 @@ export interface JinxDefinition {
   jinx_name: string;
   description?: string;
   inputs?: JinxInput[];
+  file_context?: FileContextPattern[];
   steps: JinxStep[];
   _source_path?: string;
 }
@@ -79,6 +93,8 @@ export interface JinxDefinition {
 export interface JinxContext {
   [key: string]: any;
   output?: any;
+  file_context?: string;
+  files?: Record<string, string>;
 }
 
 /**
@@ -96,8 +112,10 @@ export class Jinx {
   jinx_name: string;
   description: string;
   inputs: JinxInput[];
+  file_context: FileContextPattern[];
   steps: JinxStep[];
   _source_path?: string;
+  parsed_files: Record<string, string> = {};
 
   constructor(data: JinxDefinition | string, sourcePath?: string) {
     if (typeof data === 'string') {
@@ -110,6 +128,10 @@ export class Jinx {
     if (sourcePath) {
       this._source_path = sourcePath;
     }
+    // Parse file patterns if file_context is defined
+    if (this.file_context && this.file_context.length > 0) {
+      this.parsed_files = this._parseFilePatterns(this.file_context);
+    }
   }
 
   private _loadFromData(data: JinxDefinition): void {
@@ -120,6 +142,7 @@ export class Jinx {
     this.jinx_name = data.jinx_name;
     this.description = data.description || '';
     this.inputs = data.inputs || [];
+    this.file_context = data.file_context || [];
     this.steps = data.steps || [];
     this._source_path = data._source_path;
   }
@@ -140,6 +163,134 @@ export class Jinx {
   }
 
   /**
+   * Parse file patterns and load matching files into a KV cache
+   */
+  private _parseFilePatterns(patternsConfig: FileContextPattern[]): Record<string, string> {
+    if (!patternsConfig || patternsConfig.length === 0) {
+      return {};
+    }
+
+    const fileCache: Record<string, string> = {};
+
+    for (const patternEntry of patternsConfig) {
+      const pattern = patternEntry.pattern;
+      const recursive = patternEntry.recursive || false;
+      let basePath = patternEntry.base_path || '.';
+
+      if (!pattern) {
+        continue;
+      }
+
+      // Resolve base path relative to source path if available
+      if (this._source_path) {
+        const sourceDir = this._source_path.substring(0, this._source_path.lastIndexOf('/') + 1);
+        basePath = this._resolvePath(basePath, sourceDir);
+      }
+
+      const matchingFiles = this._findMatchingFiles(pattern, basePath, recursive);
+
+      for (const filePath of matchingFiles) {
+        const fileContent = this._loadFileContent(filePath);
+        if (fileContent !== null) {
+          // Store relative path as key
+          const relativePath = filePath.replace(basePath, '').replace(/^\//, '');
+          fileCache[relativePath] = fileContent;
+        }
+      }
+    }
+
+    return fileCache;
+  }
+
+  /**
+   * Resolve a potentially relative path against a base directory
+   */
+  private _resolvePath(targetPath: string, baseDir: string): string {
+    if (targetPath.startsWith('/')) {
+      return targetPath;
+    }
+    if (targetPath.startsWith('~/')) {
+      // In browser/electron context, ~ might resolve to home
+      // For now, treat as relative to base
+      return `${baseDir}/${targetPath.slice(2)}`;
+    }
+    return `${baseDir}/${targetPath}`;
+  }
+
+  /**
+   * Find files matching the given pattern
+   * Note: In browser/Electron, this uses window.api or falls back to limited fs access
+   */
+  private _findMatchingFiles(pattern: string, basePath: string, recursive: boolean): string[] {
+    const matchingFiles: string[] = [];
+
+    // In browser/Electron context, we need to use the exposed API
+    if (typeof window !== 'undefined' && (window as any).api?.listFiles) {
+      try {
+        const files = (window as any).api.listFiles(basePath, recursive);
+        for (const file of files) {
+          if (this._matchPattern(file, pattern)) {
+            matchingFiles.push(file);
+          }
+        }
+      } catch (error) {
+        console.warn(`Error listing files in ${basePath}:`, error);
+      }
+      return matchingFiles;
+    }
+
+    // Fallback: return empty array in pure browser context without API
+    console.warn(`File pattern matching not available: ${pattern}`);
+    return matchingFiles;
+  }
+
+  /**
+   * Match a filename against a glob-like pattern
+   */
+  private _matchPattern(filename: string, pattern: string): boolean {
+    // Simple glob matching: * matches any characters
+    const regex = new RegExp(
+      '^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$'
+    );
+    return regex.test(filename);
+  }
+
+  /**
+   * Load content from a file
+   * Note: In browser/Electron, this uses window.api or returns null
+   */
+  private _loadFileContent(filePath: string): string | null {
+    if (typeof window !== 'undefined' && (window as any).api?.readFile) {
+      try {
+        return (window as any).api.readFile(filePath);
+      } catch (error) {
+        console.error(`Error reading ${filePath}:`, error);
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Format parsed files into context string for LLM
+   */
+  private _formatParsedFilesContext(parsedFiles: Record<string, string>): string {
+    if (!parsedFiles || Object.keys(parsedFiles).length === 0) {
+      return '';
+    }
+
+    const contextParts: string[] = ['Additional context from files:'];
+
+    for (const [filePath, content] of Object.entries(parsedFiles)) {
+      contextParts.push(`\n--- ${filePath} ---`);
+      contextParts.push(content);
+      contextParts.push('');
+    }
+
+    return contextParts.join('\n');
+  }
+
+  /**
    * Execute all steps in the jinx
    */
   async execute(
@@ -155,6 +306,12 @@ export class Jinx {
       ...extraContext,
       output: null,
     };
+
+    // Add file context if available
+    if (this.parsed_files && Object.keys(this.parsed_files).length > 0) {
+      context.files = this.parsed_files;
+      context.file_context = this._formatParsedFilesContext(this.parsed_files);
+    }
 
     // Execute each step
     for (const step of this.steps) {
@@ -179,6 +336,12 @@ export class Jinx {
       ...extraContext,
       output: null,
     };
+
+    // Add file context if available
+    if (this.parsed_files && Object.keys(this.parsed_files).length > 0) {
+      context.files = this.parsed_files;
+      context.file_context = this._formatParsedFilesContext(this.parsed_files);
+    }
 
     // Find the tsx step (usually named 'render')
     const tsxStep = this.steps.find(s => s.engine === 'tsx');
@@ -321,8 +484,22 @@ export class Jinx {
       jinx_name: this.jinx_name,
       description: this.description,
       inputs: this.inputs,
+      file_context: this.file_context,
       steps: this.steps,
     });
+  }
+
+  /**
+   * Convert to a dictionary representation (for serialization)
+   */
+  toDict(): Record<string, any> {
+    return {
+      jinx_name: this.jinx_name,
+      description: this.description,
+      inputs: this.inputs,
+      file_context: this.file_context,
+      steps: this.steps,
+    };
   }
 }
 
