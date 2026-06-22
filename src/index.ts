@@ -1,4 +1,3 @@
-// Core modules
 export * from "./core/chat";
 export * from "./core/types";
 export * from "./core/layout";
@@ -6,6 +5,7 @@ export * from "./core/files";
 export * from "./core/utils";
 export * from "./core/database";
 export * from "./core/vm";
+export * from "./core/stream";
 
 // Spatial core types (exclude conflicting names that are also in ui/spatial components)
 export type {
