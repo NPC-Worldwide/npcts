@@ -53,8 +53,8 @@ export const JinxTree: React.FC<JinxTreeProps> = ({
     });
   };
 
-  const renderTree = (node: any, path = ''): JSX.Element[] => {
-    const items: JSX.Element[] = [];
+  const renderTree = (node: any, path = ''): React.ReactElement[] => {
+    const items: React.ReactElement[] = [];
     
     const sortedFolders = Object.keys(node.folders).sort();
     for (const folder of sortedFolders) {

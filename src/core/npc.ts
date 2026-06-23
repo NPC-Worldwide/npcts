@@ -638,7 +638,6 @@ export class Team {
   forenpc: NPC | null = null;
   forenpc_name?: string;
   skills_directory?: string;
-  external_jinx_teams: string[] = [];
   _jinx_path_map: Record<string, string> = {};
   context: string = '';
   shared_context: Record<string, any> = {};
@@ -668,7 +667,6 @@ export class Team {
     this.forenpc = null;
     this.forenpc_name = undefined;
     this.skills_directory = undefined;
-    this.external_jinx_teams = [];
 
     if (this.team_path) {
       this.name = this.team_path.split(/[\\/]/).pop() || 'team';
@@ -743,19 +741,6 @@ export class Team {
       }
     }
 
-    if (this.external_jinx_teams?.length) {
-      const existing_names = new Set(this._raw_jinxes_list.map((j) => j.jinx_name));
-      for (const ext_team_root of this.external_jinx_teams) {
-        const ext_jinxes_dir = pathModule?.join(ext_team_root, 'jinxes');
-        if (!ext_jinxes_dir || !fsModule.existsSync(ext_jinxes_dir)) continue;
-        for (const jinx_obj of load_jinxes_from_directory(ext_jinxes_dir)) {
-          if (existing_names.has(jinx_obj.jinx_name)) continue;
-          this._raw_jinxes_list.push(jinx_obj);
-          existing_names.add(jinx_obj.jinx_name);
-        }
-      }
-    }
-
     if (this.skills_directory) {
       let skills_path = this.skills_directory;
       if (!pathModule?.isAbsolute(skills_path) && this.team_path) {
@@ -821,9 +806,6 @@ export class Team {
             this.mcp_servers = data.mcp_servers;
           }
           if (data.skills_directory) this.skills_directory = data.skills_directory;
-          if (data.external_jinx_teams && Array.isArray(data.external_jinx_teams)) {
-            this.external_jinx_teams = data.external_jinx_teams;
-          }
           return;
         }
       }
