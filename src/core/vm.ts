@@ -67,7 +67,7 @@ export function createHttpVMClient(
         });
 
         if (!response.ok) {
-          return [];
+          throw new Error(`Failed to list VMs: ${response.status}`);
         }
 
         return await response.json();
