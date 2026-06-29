@@ -73,7 +73,7 @@ export function createHttpVMClient(
         return await response.json();
       } catch (error) {
         console.error('Error listing VMs:', error);
-        return [];
+        throw new Error(`Failed to list VMs: ${error}`);
       }
     },
 
