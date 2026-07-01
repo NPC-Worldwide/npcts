@@ -2,11 +2,17 @@
 export * from './types';
 export * from './layout';
 export * from './files';
-export * from './utils';
-export * from './chat';
-export * from './stream';
-export * from './browser';
-export * from './jobs';
-export * from './database';
-export * from './spatial';
-export * from './jinx';
+export {
+  StreamConfig,
+  StreamEvent,
+  cleanMessagesForLLM,
+  ensureSystemPrompt,
+  formatSseEvent,
+  createStreamingResponse,
+} from "./stream.js";
+export * from "./types.js";
+export * from "./jinx.js";
+export * from "./vm.js";
+export * from "./chat.js";
+export * from "./utils.js";
+export * from "./constants.js";
