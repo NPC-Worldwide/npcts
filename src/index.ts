@@ -1,7 +1,12 @@
-// Core modules
-export * from "./core/chat";
-export * from "./core/types";
-export * from "./core/layout";
+export * from "./core/index.js";
+
+// Explicit re-exports for key streaming types
+export {
+  StreamConfig,
+  StreamEvent,
+  cleanMessagesForLLM,
+  ensureSystemPrompt,
+} from "./core/stream.js";
 export * from "./core/files";
 export * from "./core/utils";
 export * from "./core/database";
