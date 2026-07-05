@@ -1,4 +1,4 @@
-import type { Attachment, ModelInfo, ToolCall } from "./types";
+import type { Attachment, ModelInfo, ToolCall, Message } from "./types";
 
 export interface Conversation {
   id: string;
@@ -44,3 +44,6 @@ export interface ChatClient {
   sendMessage(request: ChatSendRequest): Promise<ChatMessage | AsyncGenerator<ChatStreamChunk>>;
   deleteMessage(conversationId: string, messageId: string): Promise<void>;
 }
+
+// Re-export Message for compatibility
+export type { Message };
