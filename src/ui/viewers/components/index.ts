@@ -15,3 +15,5 @@ export { GISMapView, featuresToGeoJSON, geoJSONToFeatures, BASEMAPS, LAYER_COLOR
 export type { GISMapViewProps, GISProject, GeoFeature, MapLayer, DrawMode, OsintMarkerSet } from "./GISMapView";
 export { RadioPane, HAM_BANDS, EMERGENCY_FREQS, DIGITAL_MODES } from "./RadioPane";
 export type { RadioPaneProps, RadioTab, RepeaterResult, APRSStation, QSOEntry, SolarData } from "./RadioPane";
+export { EarthView } from "../earth/index.js";
+export type { EarthViewProps } from "../earth/index.js";

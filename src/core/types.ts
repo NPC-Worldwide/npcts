@@ -24,3 +24,43 @@ export interface ToolCall {
   status?: "pending" | "running" | "succeeded" | "failed";
   output?: string;
 }
+
+/**
+ * Tool definition for function calling.
+ * Matches the OpenAI-style function calling format.
+ */
+export interface Tool {
+  /** The type of the tool - always "function" for function calling */
+  type?: "function";
+  /** Function definition */
+  function?: {
+    name: string;
+    description: string;
+    parameters: {
+      type: string;
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+  };
+  /** Direct name (alternative format) */
+  name?: string;
+  /** Direct description (alternative format) */
+  description?: string;
+  /** Direct parameters (alternative format) */
+  parameters?: {
+    type: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+/**
+ * Message interface for chat conversations.
+ * Supports both standard messages and tool-related messages.
+ */
+export interface Message {
+  role: string;
+  content?: string;
+  tool_calls?: ToolCall[];
+  name?: string;
+}

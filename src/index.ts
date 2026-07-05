@@ -6,6 +6,7 @@ export * from "./core/files";
 export * from "./core/utils";
 export * from "./core/database";
 export * from "./core/vm";
+export * from "./core/npc";
 
 // Spatial core types (exclude conflicting names that are also in ui/spatial components)
 export type {
@@ -81,3 +82,4 @@ export * from "./ui/models";
 export * from "./ui/dashboard";
 export * from "./ui/editors";
 export * from "./ui/spatial";
+export * from "./ui/sync";

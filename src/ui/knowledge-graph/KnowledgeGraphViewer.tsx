@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
+import ForceGraph2D, { ForceGraphMethods, NodeObject, LinkObject } from 'react-force-graph-2d';
 
 export interface GraphNode {
   id: string;
@@ -32,7 +32,7 @@ export const KnowledgeGraphViewer: React.FC<KnowledgeGraphViewerProps> = ({
   getNodeSize,
   getLinkWidth
 }) => {
-  const graphRef = useRef();
+  const graphRef = useRef<ForceGraphMethods<NodeObject<GraphNode>, LinkObject<GraphNode, GraphLink>> | null>(null) as React.MutableRefObject<ForceGraphMethods<NodeObject<GraphNode>, LinkObject<GraphNode, GraphLink>> | undefined>;
 
   const defaultNodeColor = (node: GraphNode) => {
     return node.type === 'concept' ? '#a855f7' : '#3b82f6';
