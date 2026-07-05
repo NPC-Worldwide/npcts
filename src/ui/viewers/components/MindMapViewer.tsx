@@ -148,7 +148,7 @@ export const MindMapViewer: React.FC<MindMapViewerProps> = ({
   const isUndoRedoRef = useRef(false);
   const lastSnapshotRef = useRef('');
 
-  const graphRef = useRef<any>();
+  const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Snapshot history on changes (debounced via JSON comparison)
