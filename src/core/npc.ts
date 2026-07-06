@@ -45,7 +45,7 @@ export class Jinx {
   steps: any[] = [];
   file_context: string[] = [];
   _source_path?: string;
-  _raw_steps: any[] = [];
+  permissions: Record<string, string> = {};
   parsed_files: Record<string, any> = {};
 
   constructor(jinx_data?: Record<string, any>, jinx_path?: string) {
@@ -177,8 +177,17 @@ export class Jinx {
     const filePath = pathModule.join(dir, `${this.jinx_name}.jinx`);
     const yml = yaml.dump(this.to_dict(), { lineWidth: -1 });
     fsModule.writeFileSync(filePath, yml, 'utf8');
+  static from_mcp(_mcp_tool: any): Jinx {
+    throw new Error('Jinx.from_mcp not implemented in npcts');
   }
 
+  setPermission(level: string): void {
+    this.permissions[this.jinx_name] = level;
+  }
+
+  checkPermission(): string | undefined {
+    return this.permissions[this.jinx_name];
+  }
   static from_mcp(_mcp_tool: any): Jinx {
     throw new Error('Jinx.from_mcp not implemented in npcts');
   }
