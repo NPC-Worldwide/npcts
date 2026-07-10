@@ -1,6 +1,6 @@
 {
   "name": "npcts",
-  "version": "0.1.24",
+  "version": "0.1.25",
   "description": "NPC TypeScript SDK - A comprehensive UI component library for building AI-powered applications",
   "type": "module",
   "main": "./dist/index.js",
@@ -65,10 +65,10 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "react-leaflet": "^4.2.1",
     "leaflet": "^1.9.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "react-leaflet": "^4.2.1 || ^5.0.0"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",
