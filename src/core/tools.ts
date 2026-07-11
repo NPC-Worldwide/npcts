@@ -27,6 +27,176 @@ export type ToolHandler = (args: Record<string, unknown>) => unknown | Promise<u
 export type ToolFunction = (...args: unknown[]) => unknown | Promise<unknown>;
 
 /**
+ * Parameter information extracted from function introspection.
+ */
+export interface ParameterInfo {
+  name: string;
+  type: string;
+  description?: string;
+  required?: boolean;
+  defaultValue?: unknown;
+}
+
+/**
+ * Convert TypeScript types to JSON schema types.
+ * Mirrors python_type_to_json_schema in npcpy.
+ *
+ * @param tsType - TypeScript type name or constructor
+ * @returns JSON schema type descriptor
+ */
+export function tsTypeToJsonSchema(tsType: string | undefined): { type: string; items?: unknown } {
+  if (!tsType) return { type: "string" };
+
+  const typeMap: Record<string, { type: string; items?: unknown }> = {
+    string: { type: "string" },
+    number: { type: "number" },
+    integer: { type: "integer" },
+    boolean: { type: "boolean" },
+    array: { type: "array", items: { type: "string" } },
+    object: { type: "object" },
+    any: { type: "object" },
+  };
+
+  // Handle array types like string[], number[]
+  if (tsType.endsWith("[]")) {
+    const itemType = tsType.slice(0, -2);
+    return {
+      type: "array",
+      items: tsTypeToJsonSchema(itemType),
+    };
+  }
+
+  // Handle Promise<T> - unwrap the type
+  const promiseMatch = tsType.match(/Promise<(.+)>/);
+  if (promiseMatch) {
+    return tsTypeToJsonSchema(promiseMatch[1]);
+  }
+
+  // Handle union types with null/undefined (optional)
+  if (tsType.includes("|")) {
+    const parts = tsType.split("|").map(t => t.trim());
+    const nonNullParts = parts.filter(p => p !== "null" && p !== "undefined");
+    if (nonNullParts.length > 0) {
+      return tsTypeToJsonSchema(nonNullParts[0]);
+    }
+  }
+
+  return typeMap[tsType] || { type: "string" };
+}
+
+/**
+ * Extract JSDoc comment from a function.
+ * Parses the function's toString() to extract parameter descriptions.
+ *
+ * @param func - The function to extract JSDoc from
+ * @returns Object with description and parameter descriptions
+ */
+function extractJSDoc(func: ToolFunction): {
+  description: string;
+  paramDescriptions: Record<string, string>;
+} {
+  const result = {
+    description: "",
+    paramDescriptions: {} as Record<string, string>,
+  };
+
+  try {
+    const funcStr = func.toString();
+
+    // Extract JSDoc comment block
+    const jsdocMatch = funcStr.match(/\/\*\*\s*([\s\S]*?)\s*\*\//);
+    if (jsdocMatch) {
+      const jsdoc = jsdocMatch[1];
+
+      // Extract main description (lines not starting with @)
+      const lines = jsdoc.split('\n');
+      const descLines: string[] = [];
+
+      for (const line of lines) {
+        const trimmed = line.replace(/^\s*\*\s?/, '').trim();
+        if (trimmed.startsWith('@')) break;
+        if (trimmed) descLines.push(trimmed);
+      }
+
+      result.description = descLines.join(' ');
+
+      // Extract @param tags
+      const paramRegex = /@param\s+(?:\{[^}]+\}\s+)?(\w+)\s*-?\s*(.*)/g;
+      let match;
+      while ((match = paramRegex.exec(jsdoc)) !== null) {
+        const [, paramName, paramDesc] = match;
+        result.paramDescriptions[paramName] = paramDesc.trim();
+      }
+    }
+  } catch {
+    // Ignore extraction errors
+  }
+
+  return result;
+}
+
+/**
+ * Extract parameter information from a function using runtime introspection.
+ * Mirrors Python's inspect.signature() behavior.
+ *
+ * @param func - The function to extract parameters from
+ * @returns Array of parameter information
+ */
+function extractParametersFromFunction(func: ToolFunction): ParameterInfo[] {
+  const params: ParameterInfo[] = [];
+  const jsdoc = extractJSDoc(func);
+
+  try {
+    const funcStr = func.toString();
+
+    // Match function parameters: function name(p1, p2) or (p1, p2) =>
+    const paramMatch = funcStr.match(/(?:function\s*\w*\s*)?\(([^)]*)\)/);
+    if (paramMatch) {
+      const paramStr = paramMatch[1];
+
+      // Split by comma, handling nested structures
+      const paramParts: string[] = [];
+      let depth = 0;
+      let current = '';
+
+      for (const char of paramStr) {
+        if (char === '<' || char === '(' || char === '[' || char === '{') depth++;
+        else if (char === '>' || char === ')' || char === ']' || char === '}') depth--;
+        else if (char === ',' && depth === 0) {
+          paramParts.push(current.trim());
+          current = '';
+          continue;
+        }
+        current += char;
+      }
+      if (current.trim()) paramParts.push(current.trim());
+
+      for (const param of paramParts) {
+        if (!param || param.startsWith('...')) continue; // Skip rest params for now
+
+        // Parse parameter: name, name: type, name = default, name: type = default
+        const match = param.match(/^(\w+)(?:\s*:\s*([^=]+))?(?:\s*=\s*(.+))?$/);
+        if (match) {
+          const [, name, typePart, defaultPart] = match;
+          const type = typePart?.trim() || 'any';
+          const hasDefault = defaultPart !== undefined;
+
+          params.push({
+            name,
+            type,
+            description: jsdoc.paramDescriptions[name] || `The ${name} parameter`,
+            required: !hasDefault,
+            defaultValue: hasDefault ? defaultPart.trim() : undefined,
+          });
+        }
+      }
+    }
+  } catch {
+    // Fallback: if we can't parse, return empty
+  }
+
+  return params;
+}
  * Convert TypeScript types to JSON schema types.
  * Mirrors python_type_to_json_schema in npcpy.
  * 
