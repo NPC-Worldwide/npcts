@@ -211,39 +211,33 @@ function extractParametersFromFunction(func: ToolFunction): ParameterInfo[] {
  */
 /**
  * Extract function information including name, description, and parameters.
- * Mirrors extract_function_info in npcpy.
- * 
- * Note: In TypeScript, we can't introspect function parameters as deeply as Python's inspect.
- * Users should provide metadata explicitly or use TypeScript decorators.
- * 
- * @param func - The function to extract info from
- * @param options - Optional metadata for the function
- * @returns Tool schema object
- */
-export interface ExtractFunctionInfoOptions {
-  name?: string;
-  description?: string;
-  parameters?: {
-    [paramName: string]: {
-      type: string;
-      description?: string;
-      required?: boolean;
-    };
-  };
-}
-
 export function extractFunctionInfo(
   func: ToolFunction,
   options: ExtractFunctionInfoOptions = {}
 ): Tool {
   const funcName = options.name || func.name || "anonymous";
-  const description = options.description || `Call the ${funcName} function`;
+  const jsdoc = extractJSDoc(func);
+  const description = options.description || jsdoc.description || `Call the ${funcName} function`;
   
   const properties: Record<string, { type: string; description: string }> = {};
   const required: string[] = [];
   
-  if (options.parameters) {
-    for (const [paramName, paramInfo] of Object.entries(options.parameters)) {
+  // Use auto-extracted parameters if not explicitly provided
+  const parameters = options.parameters || (() => {
+    const extracted = extractParametersFromFunction(func);
+    const params: Record<string, { type: string; description: string; required?: boolean }> = {};
+    for (const param of extracted) {
+      params[param.name] = {
+        type: param.type,
+        description: param.description || `The ${param.name} parameter`,
+        required: param.required,
+      };
+    }
+    return Object.keys(params).length > 0 ? params : undefined;
+  })();
+  
+  if (parameters) {
+    for (const [paramName, paramInfo] of Object.entries(parameters)) {
       properties[paramName] = {
         type: tsTypeToJsonSchema(paramInfo.type).type,
         description: paramInfo.description || `The ${paramName} parameter`,
@@ -262,6 +256,12 @@ export function extractFunctionInfo(
       description,
       parameters: {
         type: "object",
+        properties,
+        required,
+      },
+    },
+  };
+}
         properties,
         required,
       },
