@@ -196,52 +196,6 @@ function extractParametersFromFunction(func: ToolFunction): ParameterInfo[] {
   }
 
   return params;
-}
- * Convert TypeScript types to JSON schema types.
- * Mirrors python_type_to_json_schema in npcpy.
- * 
- * @param tsType - TypeScript type name or constructor
- * @returns JSON schema type descriptor
- */
-export function tsTypeToJsonSchema(tsType: string | undefined): { type: string; items?: unknown } {
-  if (!tsType) return { type: "string" };
-  
-  const typeMap: Record<string, { type: string; items?: unknown }> = {
-    string: { type: "string" },
-    number: { type: "number" },
-    integer: { type: "integer" },
-    boolean: { type: "boolean" },
-    array: { type: "array", items: { type: "string" } },
-    object: { type: "object" },
-    any: { type: "object" },
-  };
-  
-  // Handle array types like string[], number[]
-  if (tsType.endsWith("[]")) {
-    const itemType = tsType.slice(0, -2);
-    return {
-      type: "array",
-      items: tsTypeToJsonSchema(itemType),
-    };
-  }
-  
-  // Handle Promise<T> - unwrap the type
-  const promiseMatch = tsType.match(/Promise<(.+)>/);
-  if (promiseMatch) {
-    return tsTypeToJsonSchema(promiseMatch[1]);
-  }
-  
-  // Handle union types with null/undefined (optional)
-  if (tsType.includes("|")) {
-    const parts = tsType.split("|").map(t => t.trim());
-    const nonNullParts = parts.filter(p => p !== "null" && p !== "undefined");
-    if (nonNullParts.length > 0) {
-      return tsTypeToJsonSchema(nonNullParts[0]);
-    }
-  }
-  
-  return typeMap[tsType] || { type: "string" };
-}
 
 /**
  * Extract function information including name, description, and parameters.
