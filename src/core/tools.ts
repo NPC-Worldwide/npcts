@@ -198,19 +198,30 @@ function extractParametersFromFunction(func: ToolFunction): ParameterInfo[] {
   return params;
 }
 
+export interface ExtractFunctionInfoOptions {
+  name?: string;
+  description?: string;
+  parameters?: {
+    [paramName: string]: {
+      type: string;
+      description?: string;
+      required?: boolean;
+    };
+  };
+}
+
 /**
  * Extract function information including name, description, and parameters.
  * Mirrors extract_function_info in npcpy.
  * 
- * Note: In TypeScript, we can't introspect function parameters as deeply as Python's inspect.
- * Users should provide metadata explicitly or use TypeScript decorators.
+ * Now automatically extracts parameter information from function signatures
+ * using runtime introspection, matching Python's inspect.signature() behavior.
+ * Falls back to explicit options.parameters if provided.
  * 
  * @param func - The function to extract info from
  * @param options - Optional metadata for the function
  * @returns Tool schema object
  */
-/**
- * Extract function information including name, description, and parameters.
 export function extractFunctionInfo(
   func: ToolFunction,
   options: ExtractFunctionInfoOptions = {}
@@ -256,12 +267,6 @@ export function extractFunctionInfo(
       description,
       parameters: {
         type: "object",
-        properties,
-        required,
-      },
-    },
-  };
-}
         properties,
         required,
       },
