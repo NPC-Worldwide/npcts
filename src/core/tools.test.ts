@@ -84,6 +84,86 @@ describe("extractFunctionInfo", () => {
     expect(result.function?.parameters.required).toContain("location");
     expect(result.function?.parameters.required).not.toContain("units");
   });
+  it("should auto-extract parameters from typed function signature", () => {
+    /**
+     * Get the current weather for a location.
+     * @param location - The city and state, e.g. "San Francisco, CA"
+     * @param units - Temperature units, celsius or fahrenheit
+     */
+    const getWeather = (location: string, units: string = "celsius") => `Weather at ${location}`;
+
+    const result = extractFunctionInfo(getWeather);
+
+    expect(result.function?.name).toBe("getWeather");
+    expect(result.function?.description).toBe("Get the current weather for a location.");
+    expect(result.function?.parameters.properties).toHaveProperty("location");
+    expect(result.function?.parameters.properties).toHaveProperty("units");
+    expect(result.function?.parameters.properties.location.type).toBe("string");
+    expect(result.function?.parameters.properties.location.description).toBe("The city and state, e.g. \"San Francisco, CA\"");
+    expect(result.function?.parameters.required).toContain("location");
+    // units has a default, so it's not required
+    expect(result.function?.parameters.required).not.toContain("units");
+  });
+
+  it("should handle function declarations with JSDoc", () => {
+    /**
+     * Calculate the sum of two numbers.
+     * @param a - First number to add
+     * @param b - Second number to add
+     * @returns The sum of a and b
+     */
+    function calcSum(a: number, b: number) {
+      return a + b;
+    }
+
+    const result = extractFunctionInfo(calcSum);
+
+    expect(result.function?.name).toBe("calcSum");
+    expect(result.function?.description).toBe("Calculate the sum of two numbers.");
+    expect(result.function?.parameters.properties.a.description).toBe("First number to add");
+    expect(result.function?.parameters.properties.b.description).toBe("Second number to add");
+    expect(result.function?.parameters.required).toContain("a");
+    expect(result.function?.parameters.required).toContain("b");
+  });
+
+  it("should handle functions without JSDoc", () => {
+    const simpleFunc = (x: number, y: number) => x + y;
+    const result = extractFunctionInfo(simpleFunc);
+
+    expect(result.function?.name).toBe("simpleFunc");
+    expect(result.function?.description).toBe("Call the simpleFunc function");
+    expect(result.function?.parameters.properties.x.type).toBe("number");
+    expect(result.function?.parameters.properties.y.type).toBe("number");
+    expect(result.function?.parameters.properties.x.description).toBe("The x parameter");
+  });
+
+  it("should prefer explicit options over auto-extraction", () => {
+    const myFunc = (a: string) => a;
+
+    const result = extractFunctionInfo(myFunc, {
+      name: "custom_name",
+      description: "Custom description",
+      parameters: {
+        param1: { type: "string", description: "Explicit param", required: true },
+      },
+    });
+
+    expect(result.function?.name).toBe("custom_name");
+    expect(result.function?.description).toBe("Custom description");
+    expect(result.function?.parameters.properties).toHaveProperty("param1");
+    expect(result.function?.parameters.properties).not.toHaveProperty("a");
+  });
+
+  it("should handle anonymous functions with fallback", () => {
+    const result = extractFunctionInfo(() => "test");
+
+    expect(result.function?.name).toBe("anonymous");
+    expect(result.function?.parameters).toEqual({
+      type: "object",
+      properties: {},
+      required: [],
+    });
+  });
 });
 
 describe("createToolSchema", () => {
