@@ -7,37 +7,47 @@
  *
  * Jinx format (YAML):
  * ```yaml
- * jinx_name: tile.db_tool
- * description: Opens Database Tool pane
- * inputs:
- *   - label: "DB Tool"
- *   - icon: "Database"
- * steps:
- *   - name: render
- *     engine: tsx
- *     code: |
- *       export default function({ actions }) {
- *         return <button onClick={() => actions.createDBToolPane()}>DB</button>
- *       }
- * ```
- */
+export interface JinxStep {
+  name: string;
+  code?: string;
+  engine?: string;
+  [key: string]: any;
+}
 
+export interface JinxPermissions {
+  default: 'allow' | 'deny' | 'ask';
+  [key: string]: any;
+}
 import * as esbuild from 'esbuild-wasm';
-import yaml from 'js-yaml';
-import React from 'react';
+export class Jinx {
+  jinx_name: string;
+  description: string;
+  inputs: (string | Record<string, any>)[];
+  steps: JinxStep[];
+  file_context: any[];
+  npc?: string;
+  permissions: JinxPermissions;
+  
+  private _rawSteps: (string | JinxStep)[];
+  private _sourcePath?: string;
+  private parsedFiles: Record<string, string>;
 
-// Track esbuild initialization
-let esbuildInitialized = false;
-let esbuildInitPromise: Promise<void> | null = null;
-
-/**
- * Initialize esbuild-wasm (call once at app startup)
- */
-export async function initJinxEngine(): Promise<void> {
-  if (esbuildInitialized) return;
-  if (esbuildInitPromise) return esbuildInitPromise;
-
-  esbuildInitPromise = esbuild.initialize({
+  constructor(data?: any, path?: string) {
+    if (path) {
+      this._loadFromFile(path);
+    } else if (data) {
+      this._loadFromData(data);
+    } else {
+      throw new Error('Either data or path must be provided');
+    }
+    
+    this._rawSteps = [...this.steps];
+    this.parsedFiles = {};
+    
+    if (this.file_context && this.file_context.length > 0) {
+      // File context parsing would go here
+    }
+  }
     wasmURL: 'https://unpkg.com/esbuild-wasm@0.24.0/esbuild.wasm',
   }).then(() => {
     esbuildInitialized = true;
@@ -82,38 +92,90 @@ export interface JinxContext {
 }
 
 /**
- * Result of executing a TSX step (returns a React component)
- */
-export interface TsxStepResult {
-  Component: React.ComponentType<any>;
-  props?: Record<string, any>;
-}
-
-/**
- * Jinx class - loads and executes jinx workflows
- */
-export class Jinx {
-  jinx_name: string;
-  description: string;
-  inputs: JinxInput[];
-  steps: JinxStep[];
-  _source_path?: string;
-
-  constructor(data: JinxDefinition | string, sourcePath?: string) {
-    if (typeof data === 'string') {
-      // Parse YAML string
-      const parsed = yaml.load(data) as JinxDefinition;
-      this._loadFromData(parsed);
-    } else {
-      this._loadFromData(data);
+  private _loadFromData(jinxData: any): void {
+    if (!jinxData || typeof jinxData !== 'object') {
+      throw new Error('Invalid jinx data provided');
     }
-    if (sourcePath) {
-      this._source_path = sourcePath;
+    
+    if (!jinxData.jinx_name) {
+      throw new Error("Missing 'jinx_name' in jinx definition");
+    }
+    
+    this.jinx_name = jinxData.jinx_name;
+    this.inputs = jinxData.inputs || [];
+    this.description = jinxData.description || '';
+    this.npc = jinxData.npc;
+    this.steps = jinxData.steps || [];
+    this.file_context = jinxData.file_context || [];
+    this._sourcePath = jinxData._source_path;
+    
+    // Initialize permissions with default
+    this.permissions = jinxData.permissions || {};
+    if (typeof this.permissions !== 'object') {
+      this.permissions = {};
+    }
+    if (!this.permissions.default) {
+      this.permissions.default = 'ask';
     }
   }
 
-  private _loadFromData(data: JinxDefinition): void {
-    if (!data.jinx_name) {
+  /**
+   * Persist a permission level to this jinx's metadata.
+   * @param level - 'allow', 'deny', or 'ask'
+   */
+  setPermission(level: 'allow' | 'deny' | 'ask'): void {
+    this.permissions.default = level;
+    // Note: In a full implementation, this would save to the source file
+    // For now, we just update the in-memory permissions
+  }
+
+  /**
+   * Return this jinx's default permission level.
+   * @returns 'allow', 'deny', or 'ask'
+   */
+  checkPermission(): 'allow' | 'deny' | 'ask' {
+    const level = this.permissions?.default || 'ask';
+    if (level !== 'allow' && level !== 'deny' && level !== 'ask') {
+      return 'ask';
+    }
+    return level;
+  }
+
+  /**
+   * Convert this Jinx to a tool definition for LLM use
+   */
+  toToolDef(): any {
+    const properties: Record<string, any> = {};
+    const required: string[] = [];
+    
+    for (const input of this.inputs) {
+      if (typeof input === 'string') {
+        properties[input] = { type: 'string', description: `Parameter: ${input}` };
+        required.push(input);
+      } else if (typeof input === 'object' && input !== null) {
+        const name = Object.keys(input)[0];
+        const defaultVal = input[name];
+        let desc = `Parameter: ${name}`;
+        if (defaultVal !== undefined && defaultVal !== '') {
+          desc += ` (default: ${defaultVal})`;
+        }
+        properties[name] = { type: 'string', description: desc };
+      }
+    }
+    
+    return {
+      type: 'function',
+      function: {
+        name: this.jinx_name,
+        description: this.description || `Jinx: ${this.jinx_name}`,
+        parameters: {
+          type: 'object',
+          properties,
+          required
+        }
+      }
+    };
+  }
       throw new Error("Missing 'jinx_name' in jinx definition");
     }
 
