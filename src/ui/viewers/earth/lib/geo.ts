@@ -38,9 +38,9 @@ export function bboxFromPoint(lat: number, lon: number, size: number): BoundingB
 
   return {
     minLat: clamp(lat - half, -85, 85),
-    maxLat: clamp(lat + half, 85, 85),
+    maxLat: clamp(lat + half, -85, 85),
     minLon: clamp(lon - half, -180, 180),
-    maxLon: clamp(lon + half, 180, 180),
+    maxLon: clamp(lon + half, -180, 180),
   };
 }
 

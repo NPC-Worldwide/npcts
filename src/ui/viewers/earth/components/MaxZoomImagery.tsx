@@ -61,9 +61,9 @@ function bboxFromViewport(lat: number, lon: number, latSpan: number, lonSpan: nu
 
   return {
     minLat: clamp(lat - halfLat, -85, 85),
-    maxLat: clamp(lat + halfLat, 85, 85),
+    maxLat: clamp(lat + halfLat, -85, 85),
     minLon: clamp(lon - halfLon, -180, 180),
-    maxLon: clamp(lon + halfLon, 180, 180),
+    maxLon: clamp(lon + halfLon, -180, 180),
   };
 }
 
