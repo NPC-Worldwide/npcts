@@ -188,6 +188,174 @@ const defaultAdjustments: ImageAdjustments = {
 
 const generateId = () => `layer_${Math.random().toString(36).substring(2, 11)}`;
 
+// ----- Color helpers -----
+
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0, s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+    return [h, s, l];
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+    if (s === 0) {
+        const v = l * 255;
+        return [v, v, v];
+    }
+    const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    return [
+        hue2rgb(p, q, h + 1 / 3) * 255,
+        hue2rgb(p, q, h) * 255,
+        hue2rgb(p, q, h - 1 / 3) * 255,
+    ];
+}
+
+function buildToneCurve(a: ImageAdjustments): Uint8Array {
+    const curve = new Uint8Array(256);
+    const exposure = 1 + a.exposure / 100;
+    const contrast = 1 + a.contrast / 100;
+    const clarity = a.clarity / 100;
+    const shadows = a.shadows / 100;
+    const highlights = a.highlights / 100;
+    const whites = a.whites / 100;
+    const blacks = a.blacks / 100;
+
+    for (let i = 0; i < 256; i++) {
+        let v = i / 255;
+
+        // Exposure
+        v *= exposure;
+
+        // Contrast
+        v = (v - 0.5) * contrast + 0.5;
+
+        // Clarity (midtone S-curve)
+        if (clarity !== 0) {
+            const mid = v;
+            const sCurve = mid < 0.5
+                ? 2 * mid * mid
+                : 1 - Math.pow(-2 * mid + 2, 2) / 2;
+            v = v + clarity * (sCurve - mid);
+        }
+
+        // Shadows (brighten/darken the dark tones)
+        if (shadows !== 0) {
+            const factor = 1 - v;
+            v += shadows * factor * factor;
+        }
+
+        // Highlights (brighten/darken the light tones)
+        if (highlights !== 0) {
+            const factor = v;
+            v += highlights * factor * factor;
+        }
+
+        // Whites (move the white point)
+        if (whites !== 0) {
+            if (whites > 0) {
+                v += whites * v * (1 - v);
+            } else {
+                v += whites * (1 - v);
+            }
+        }
+
+        // Blacks (move the black point)
+        if (blacks !== 0) {
+            if (blacks > 0) {
+                v += blacks * (1 - v);
+            } else {
+                v += blacks * v;
+            }
+        }
+
+        v = Math.max(0, Math.min(1, v));
+        curve[i] = Math.round(v * 255);
+    }
+    return curve;
+}
+
+function applyAdjustmentsToImageData(src: ImageData, adjustments: ImageAdjustments): ImageData {
+    const { width, height } = src;
+    const out = new ImageData(width, height);
+    const srcData = src.data;
+    const outData = out.data;
+    const toneCurve = buildToneCurve(adjustments);
+
+    const satMul = adjustments.saturation / 100;
+    const vibrance = adjustments.vibrance / 100;
+    const hueShift = adjustments.hue / 360;
+    const warmth = adjustments.warmth / 100;
+    const tint = adjustments.tint / 100;
+    const grainAmp = (adjustments.grain / 100) * 32;
+
+    for (let i = 0; i < srcData.length; i += 4) {
+        const r = srcData[i];
+        const g = srcData[i + 1];
+        const b = srcData[i + 2];
+        const a = srcData[i + 3];
+
+        const [h, s, l] = rgbToHsl(r, g, b);
+
+        // Tone curve on luminance
+        const l2 = toneCurve[Math.round(l * 255)] / 255;
+
+        // Saturation / vibrance
+        let s2 = s * satMul;
+        if (vibrance > 0) {
+            s2 += vibrance * (1 - s2);
+        } else {
+            s2 += vibrance * s2;
+        }
+        s2 = Math.max(0, Math.min(1, s2));
+
+        // Hue shift (including subtle warmth / tint shifts)
+        let h2 = (h + hueShift + warmth * 0.02 - tint * 0.01 + 1) % 1;
+
+        let [r2, g2, b2] = hslToRgb(h2, s2, l2);
+
+        // Warmth / tint channel multipliers
+        r2 *= 1 + warmth * 0.3 + tint * 0.15;
+        g2 *= 1 - tint * 0.3;
+        b2 *= 1 - warmth * 0.3 + tint * 0.15;
+
+        // Grain
+        if (grainAmp > 0) {
+            const noise = (Math.random() - 0.5) * grainAmp;
+            r2 += noise;
+            g2 += noise;
+            b2 += noise;
+        }
+
+        outData[i] = Math.max(0, Math.min(255, r2));
+        outData[i + 1] = Math.max(0, Math.min(255, g2));
+        outData[i + 2] = Math.max(0, Math.min(255, b2));
+        outData[i + 3] = a;
+    }
+
+    return out;
+}
+
 // ----- Main Component -----
 
 export const ImageEditor: React.FC<ImageEditorProps> = ({
@@ -207,6 +375,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
 
     // Adjustments
     const [adjustments, setAdjustments] = useState<ImageAdjustments>(defaultAdjustments);
+    const adjustmentsRef = useRef(adjustments);
+    useEffect(() => { adjustmentsRef.current = adjustments; }, [adjustments]);
 
     // Layers
     const [textLayers, setTextLayers] = useState<TextLayer[]>([]);
@@ -257,6 +427,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
     const imageRef = useRef<HTMLImageElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const exportCanvasRef = useRef<HTMLCanvasElement>(null);
+    const baseCanvasRef = useRef<HTMLCanvasElement>(null);
+    const sourceDataRef = useRef<ImageData | null>(null);
+    const displaySizeRef = useRef<{ width: number; height: number; naturalWidth: number; naturalHeight: number } | null>(null);
 
     // Generative fill prompt
     const [fillPrompt, setFillPrompt] = useState('');
@@ -312,6 +485,79 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
         };
         img.src = bakedLayer;
     }, [bakedLayer]);
+
+    // ----- Adjusted base-image rendering -----
+
+    const [imageLoadTick, setImageLoadTick] = useState(0);
+
+    const drawAdjusted = useCallback(() => {
+        const src = sourceDataRef.current;
+        const base = baseCanvasRef.current;
+        if (!src || !base) return;
+        const ctx = base.getContext('2d');
+        if (!ctx) return;
+        base.width = src.width;
+        base.height = src.height;
+        const out = applyAdjustmentsToImageData(src, adjustmentsRef.current);
+        ctx.putImageData(out, 0, 0);
+    }, []);
+
+    const prepareDisplay = useCallback(() => {
+        const img = imageRef.current;
+        const container = containerRef.current;
+        const base = baseCanvasRef.current;
+        if (!img || !container || !base) return;
+        const natW = img.naturalWidth;
+        const natH = img.naturalHeight;
+        if (!natW || !natH) return;
+
+        const rect = container.getBoundingClientRect();
+        const scale = Math.min(1, rect.width / natW, rect.height / natH);
+        const w = Math.round(natW * scale);
+        const h = Math.round(natH * scale);
+
+        if (base.width !== w || base.height !== h || !sourceDataRef.current) {
+            base.width = w;
+            base.height = h;
+            displaySizeRef.current = { width: w, height: h, naturalWidth: natW, naturalHeight: natH };
+
+            const srcCanvas = document.createElement('canvas');
+            srcCanvas.width = w;
+            srcCanvas.height = h;
+            const ctx = srcCanvas.getContext('2d');
+            if (!ctx) return;
+            ctx.filter = `blur(${adjustmentsRef.current.blur}px)`;
+            ctx.drawImage(img, 0, 0, w, h);
+            sourceDataRef.current = ctx.getImageData(0, 0, w, h);
+            drawAdjusted();
+        }
+    }, [drawAdjusted]);
+
+    // Reset cached source data when the image changes
+    useEffect(() => {
+        sourceDataRef.current = null;
+        displaySizeRef.current = null;
+        setImageLoadTick(t => t + 1);
+    }, [imageSrc]);
+
+    // Re-prepare when the image finishes loading
+    useEffect(() => {
+        prepareDisplay();
+    }, [imageLoadTick, prepareDisplay]);
+
+    // Re-prepare when the container resizes
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const ro = new ResizeObserver(prepareDisplay);
+        ro.observe(container);
+        return () => ro.disconnect();
+    }, [prepareDisplay]);
+
+    // Re-render the adjusted image whenever adjustments change
+    useEffect(() => {
+        drawAdjusted();
+    }, [adjustments, drawAdjusted]);
 
     // Redraw canvas when strokes change (or canvas was resized)
     useEffect(() => {
@@ -409,33 +655,14 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
         pushHistory();
     };
 
-    // Calculate CSS filter from adjustments
-    const calculateImageStyle = useCallback((): React.CSSProperties => {
-        const {
-            exposure, contrast, saturation, vibrance, warmth, blur, hue, sharpness
-        } = adjustments;
-
-        const brightness = 1 + (exposure / 100);
-        const contrastVal = 1 + (contrast / 100);
-        const saturateVal = (saturation + vibrance) / 100;
-        const sepiaVal = warmth > 0 ? warmth / 200 : 0;
-        const hueRotate = hue + (warmth < 0 ? warmth : 0);
-
-        return {
-            filter: `
-                brightness(${brightness})
-                contrast(${contrastVal})
-                saturate(${saturateVal})
-                sepia(${sepiaVal})
-                hue-rotate(${hueRotate}deg)
-                blur(${blur}px)
-            `.trim(),
-            transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1}) scale(${zoom})`,
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain' as const
-        };
-    }, [adjustments, rotation, flipH, flipV, zoom]);
+    // Calculate CSS transform from adjustments
+    const calculateImageStyle = useCallback((): React.CSSProperties => ({
+        transform: `rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1}) scale(${zoom})`,
+        maxWidth: '100%',
+        maxHeight: '100%',
+        objectFit: 'contain' as const,
+        display: 'block'
+    }), [rotation, flipH, flipV, zoom]);
 
     // Get coordinates relative to image
     const getImageCoords = (e: React.MouseEvent) => {
@@ -516,8 +743,11 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.drawImage(img, 0, 0);
-                    const scaleX = img.naturalWidth / img.width;
-                    const scaleY = img.naturalHeight / img.height;
+                    const base = baseCanvasRef.current;
+                    const displayWidth = base ? base.width : img.naturalWidth;
+                    const displayHeight = base ? base.height : img.naturalHeight;
+                    const scaleX = img.naturalWidth / displayWidth;
+                    const scaleY = img.naturalHeight / displayHeight;
                     const pixel = ctx.getImageData(x * scaleX, y * scaleY, 1, 1).data;
                     const hex = '#' + [pixel[0], pixel[1], pixel[2]].map(c => c.toString(16).padStart(2, '0')).join('');
                     setBrushColor(hex);
@@ -696,33 +926,43 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
     // Export image
     const exportImage = useCallback(() => {
         const img = imageRef.current;
-        const drawCanvas = canvasRef.current;
         if (!img) return null;
 
-        const exportCanvas = document.createElement('canvas');
+        const exportCanvas = exportCanvasRef.current;
+        if (!exportCanvas) return null;
         exportCanvas.width = img.naturalWidth;
         exportCanvas.height = img.naturalHeight;
         const ctx = exportCanvas.getContext('2d');
         if (!ctx) return null;
 
-        // Apply adjustments via filter
-        const style = calculateImageStyle();
-        ctx.filter = style.filter || 'none';
+        const displayW = displaySizeRef.current?.width || img.naturalWidth;
+        const displayH = displaySizeRef.current?.height || img.naturalHeight;
+        const scaleX = img.naturalWidth / displayW;
+        const scaleY = img.naturalHeight / displayH;
 
-        // Draw base image
+        // Build adjusted base image at full resolution
+        const adjustedCanvas = document.createElement('canvas');
+        adjustedCanvas.width = img.naturalWidth;
+        adjustedCanvas.height = img.naturalHeight;
+        const srcCtx = adjustedCanvas.getContext('2d');
+        if (srcCtx) {
+            srcCtx.filter = `blur(${adjustments.blur}px)`;
+            srcCtx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight);
+            srcCtx.filter = 'none';
+            const srcData = srcCtx.getImageData(0, 0, img.naturalWidth, img.naturalHeight);
+            const outData = applyAdjustmentsToImageData(srcData, adjustments);
+            srcCtx.putImageData(outData, 0, 0);
+        }
+
+        // Draw base image with rotation / flip
         ctx.save();
         ctx.translate(exportCanvas.width / 2, exportCanvas.height / 2);
         ctx.rotate((rotation * Math.PI) / 180);
         ctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
-        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+        ctx.drawImage(adjustedCanvas, -img.naturalWidth / 2, -img.naturalHeight / 2);
         ctx.restore();
 
-        ctx.filter = 'none';
-
         // Draw shapes
-        const scaleX = img.naturalWidth / img.width;
-        const scaleY = img.naturalHeight / img.height;
-
         shapes.forEach(shape => {
             ctx.strokeStyle = shape.strokeColor;
             ctx.fillStyle = shape.fillColor;
@@ -798,7 +1038,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
         }
 
         return exportCanvas.toDataURL('image/png');
-    }, [adjustments, rotation, flipH, flipV, shapes, strokes, textLayers, calculateImageStyle]);
+    }, [adjustments, rotation, flipH, flipV, shapes, strokes, textLayers]);
 
     // Handle save
     const handleSave = () => {
@@ -1007,15 +1247,17 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({
                         <img
                             ref={imageRef}
                             src={imageSrc}
-                            style={calculateImageStyle()}
                             alt="Editing"
-                            draggable={false}
+                            className="hidden"
                             onLoad={() => {
-                                // Canvas size is driven by ResizeObserver tracking
-                                // the canvas element's rendered CSS size. Mouse
-                                // coords are 1:1 with canvas internal coords.
                                 setCanvasSizeTick(t => t + 1);
+                                setImageLoadTick(t => t + 1);
                             }}
+                        />
+                        <canvas
+                            ref={baseCanvasRef}
+                            className="max-w-full max-h-full"
+                            style={calculateImageStyle()}
                         />
 
                         {/* Drawing Canvas */}
