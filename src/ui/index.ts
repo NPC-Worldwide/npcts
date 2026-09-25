@@ -1,6 +1,7 @@
 // UI module exports
 export * from './hooks';
 export * from './chat';
+export * from './agent';
 export * from './files';
 export * from './viewers';
 export * from './primitives';
@@ -16,6 +17,7 @@ export * from './dialogs';
 export * from './specialized';
 export * from './npc';
 export * from './jinx';
+export * from './team';
 export * from './dashboard';
 export * from './editors';
 export * from './spatial';
