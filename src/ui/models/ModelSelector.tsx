@@ -134,7 +134,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         type="button"
         onClick={() => setOpen(!open)}
         disabled={disabled || loading || !!error}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40 text-white ${className}`}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-[var(--theme-bg-secondary,#1f2937)] border border-[var(--theme-border,#374151)] hover:bg-[var(--theme-button-hover,#374151)] disabled:opacity-40 text-white ${className}`}
       >
         <Cpu size={12} className="text-purple-400" />
         <span className="truncate max-w-[180px]">{buttonLabel}</span>
@@ -143,7 +143,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       {open && pos && createPortal(
         <div
           id="npcts-model-selector-dropdown"
-          className="fixed z-[100] bg-[#0f0f17] border border-white/10 rounded-lg shadow-2xl overflow-hidden min-w-[260px] max-w-[320px]"
+          className="fixed z-[100] bg-[var(--theme-bg-secondary,#0f0f17)] border border-[var(--theme-border,white/10)] rounded-lg shadow-2xl overflow-hidden min-w-[260px] max-w-[320px]"
           style={pos}
         >
           <div className="px-2 py-1.5 border-b border-white/10">
