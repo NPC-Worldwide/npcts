@@ -134,7 +134,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
         type="button"
         onClick={() => setOpen(!open)}
         disabled={disabled || loading || !!error}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm bg-[var(--theme-bg-secondary,#1f2937)] border border-[var(--theme-border,#374151)] hover:bg-[var(--theme-button-hover,#374151)] disabled:opacity-40 text-white ${className}`}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm theme-bg-secondary theme-text-primary theme-border border hover:bg-white/5 disabled:opacity-40 ${className}`}
       >
         <Cpu size={12} className="text-purple-400" />
         <span className="truncate max-w-[180px]">{buttonLabel}</span>
@@ -143,25 +143,25 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       {open && pos && createPortal(
         <div
           id="npcts-model-selector-dropdown"
-          className="fixed z-[100] bg-[var(--theme-bg-secondary,#0f0f17)] border border-[var(--theme-border,white/10)] rounded-lg shadow-2xl overflow-hidden min-w-[260px] max-w-[320px]"
+          className="fixed z-[100] theme-bg-primary border theme-border rounded-lg shadow-2xl overflow-hidden min-w-[260px] max-w-[320px]"
           style={pos}
         >
-          <div className="px-2 py-1.5 border-b border-white/10">
+          <div className="px-2 py-1.5 border-b theme-border">
             <input
               type="text"
               placeholder="Search models..."
-              className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder-white/30 focus:outline-none focus:border-purple-500"
+              className="w-full theme-input border theme-border rounded px-2 py-1 text-xs theme-text-primary placeholder-gray-500 focus:outline-none focus:border-purple-500/50"
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={e => e.stopPropagation()}
             />
           </div>
-          {toolbar && <div className="px-2 py-1 border-b border-white/10">{toolbar}</div>}
+          {toolbar && <div className="px-2 py-1 border-b theme-border">{toolbar}</div>}
           <div className="max-h-72 overflow-y-auto p-1">
-            {loading && <div className="px-2 py-3 text-xs text-white/40 text-center">Loading models…</div>}
+            {loading && <div className="px-2 py-3 text-xs text-gray-500 text-center">Loading models…</div>}
             {error && <div className="px-2 py-3 text-xs text-red-400 text-center">{error}</div>}
             {!loading && !error && models.length === 0 && (
-              <div className="px-2 py-3 text-xs text-white/40 text-center">No models available.</div>
+              <div className="px-2 py-3 text-xs text-gray-500 text-center">No models available.</div>
             )}
             {filteredProviders.map(provider => {
               const isExpanded = expanded.has(provider) || !!search
@@ -169,7 +169,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               if (!modelsList.length) return null
               return (
                 <div key={provider}>
-                  <div className="group flex items-center justify-between w-full px-2 py-1 text-xs font-semibold text-white/40 hover:bg-white/5"
+                  <div className="group flex items-center justify-between w-full px-2 py-1 text-xs font-semibold theme-text-secondary hover:bg-white/5"
                   >
                     <button
                       onClick={() => setExpanded(prev => {
@@ -183,7 +183,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                       <ChevronRight size={10} className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                       <span className={providerMeta[provider]?.color}>{providerLabel(provider)}</span>
                     </button>
-                    <span className="text-white/20">{modelsList.length}</span>
+                    <span className="text-gray-600">{modelsList.length}</span>
                     {onRemoveProvider && (
                       <button
                         onClick={e => { e.stopPropagation(); onRemoveProvider(provider) }}
@@ -199,7 +199,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                     return (
                       <div
                         key={m.id}
-                        className={`flex items-center gap-2 pl-6 pr-2 py-1 text-xs ${isSelected ? 'bg-purple-600/40 text-white' : 'text-white/70 hover:bg-white/5'} cursor-pointer`}
+                        className={`flex items-center gap-2 pl-6 pr-2 py-1 text-xs ${isSelected ? 'bg-green-500/20 text-green-200' : 'theme-text-secondary hover:bg-white/5'} cursor-pointer`}
                         onClick={() => { onSelect(m); close() }}
                       >
                         <span className="truncate flex-1">{m.displayName || m.id}</span>
@@ -208,7 +208,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
                             onClick={e => { e.stopPropagation(); onToggleFavorite(m.id) }}
                             className="p-0.5 rounded hover:bg-white/10"
                           >
-                            <Star size={10} className={favoriteModels?.has(m.id) ? 'text-yellow-400 fill-yellow-400' : 'text-white/30'} />
+                            <Star size={10} className={favoriteModels?.has(m.id) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-600'} />
                           </button>
                         )}
                       </div>
@@ -218,7 +218,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
               )
             })}
           </div>
-          {dropdownFooter && <div className="border-t border-white/10 p-1.5">{typeof dropdownFooter === 'function' ? dropdownFooter(close) : dropdownFooter}</div>}
+          {dropdownFooter && <div className="border-t theme-border p-1.5">{typeof dropdownFooter === 'function' ? dropdownFooter(close) : dropdownFooter}</div>}
         </div>,
         document.body
       )}
